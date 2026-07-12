@@ -11,7 +11,6 @@ struct Point {
 };
 
 int cross(Point a, Point b, Point c);
-bool pivot_less(Point a, Point b);
 
 class DynamicHull {
  public:
