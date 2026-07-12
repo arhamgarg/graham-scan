@@ -1,4 +1,21 @@
+#include "rbt.hpp"
+
 #include <iostream>
+#include <tuple>
+
+int cross(Point a, Point b, Point c) {
+  const __int128 value =
+      (static_cast<__int128>(b.x) - a.x) *
+          (static_cast<__int128>(c.y) - a.y) -
+      (static_cast<__int128>(b.y) - a.y) *
+          (static_cast<__int128>(c.x) - a.x);
+  return (value > 0) - (value < 0);
+}
+
+bool pivot_less(Point a, Point b) {
+  return std::tie(a.y, a.x) < std::tie(b.y, b.x);
+}
+
 using namespace std;
 
 class Node {
