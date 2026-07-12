@@ -161,7 +161,196 @@ bool validate_sorted(Node *node, Node *nil, Node *&last) {
   return validate_sorted(node->right, nil, last);
 }
 
+// Find the node with minimum value (leftmost)
+Node *find_minimum(Node *node, Node *nil) {
+  while (node->left != nil) {
+    node = node->left;
+  }
+  return node;
+}
+
+// Transplant: replace subtree rooted at u with subtree rooted at v
+void transplant(Node *&root, Node *nil, Node *u, Node *v) {
+  if (u->parent == nil) {
+    root = v;
+  } else if (u == u->parent->left) {
+    u->parent->left = v;
+  } else {
+    u->parent->right = v;
+  }
+  v->parent = u->parent;
+}
+
+void fix_delete(Node *&root, Node *nil, Node *x) {
+  while (x != root && x->color == Color::BLACK) {
+    if (x == x->parent->left) {
+      Node *s = x->parent->right;
+
+      // Case 1: x's sibling is red
+      if (s->color == Color::RED) {
+        s->color = Color::BLACK;
+        x->parent->color = Color::RED;
+        rotate_left(root, nil, x->parent);
+        s = x->parent->right;
+      }
+
+      // Case 2: x's sibling is black and both siblings' children are black
+      if (s->left->color == Color::BLACK && s->right->color == Color::BLACK) {
+        s->color = Color::RED;
+        x = x->parent;
+      } else {
+        // Case 3: x's sibling is black, sibling's left child is red, right is
+        // black
+        if (s->right->color == Color::BLACK) {
+          s->left->color = Color::BLACK;
+          s->color = Color::RED;
+          rotate_right(root, nil, s);
+          s = x->parent->right;
+        }
+
+        // Case 4: x's sibling is black and sibling's right child is red
+        s->color = x->parent->color;
+        x->parent->color = Color::BLACK;
+        s->right->color = Color::BLACK;
+        rotate_left(root, nil, x->parent);
+        x = root;
+      }
+    } else {
+      Node *s = x->parent->left;
+
+      if (s->color == Color::RED) {
+        s->color = Color::BLACK;
+        x->parent->color = Color::RED;
+        rotate_right(root, nil, x->parent);
+        s = x->parent->left;
+      }
+
+      if (s->right->color == Color::BLACK && s->left->color == Color::BLACK) {
+        s->color = Color::RED;
+        x = x->parent;
+      } else {
+        if (s->left->color == Color::BLACK) {
+          s->right->color = Color::BLACK;
+          s->color = Color::RED;
+          rotate_left(root, nil, s);
+          s = x->parent->left;
+        }
+
+        s->color = x->parent->color;
+        x->parent->color = Color::BLACK;
+        s->left->color = Color::BLACK;
+        rotate_right(root, nil, x->parent);
+        x = root;
+      }
+    }
+  }
+  x->color = Color::BLACK;
+}
+
 } // namespace
+
+// Rebuild tree with new pivot
+void DynamicHull::rebuild_with_new_pivot() {
+  // Collect all points
+  std::vector<Point> all_points;
+  all_points.push_back(pivot_);
+
+  // Collect from tree
+  std::function<void(Node *)> collect = [&](Node *node) {
+    if (node == nil_)
+      return;
+    collect(node->left);
+    all_points.push_back(node->point);
+    collect(node->right);
+  };
+  collect(root_);
+
+  // Delete old tree
+  std::function<void(Node *)> delete_tree = [&](Node *node) {
+    if (node == nil_)
+      return;
+    delete_tree(node->left);
+    delete_tree(node->right);
+    delete node;
+  };
+  delete_tree(root_);
+  root_ = nullptr;
+
+  // Find new pivot (minimum (y, x))
+  Point new_pivot = all_points[0];
+  size_t pivot_idx = 0;
+  for (size_t i = 1; i < all_points.size(); ++i) {
+    if (std::tie(all_points[i].y, all_points[i].x) <
+        std::tie(new_pivot.y, new_pivot.x)) {
+      new_pivot = all_points[i];
+      pivot_idx = i;
+    }
+  }
+
+  pivot_ = new_pivot;
+  size_ = 1;
+
+  // Re-insert all other points
+  for (size_t i = 0; i < all_points.size(); ++i) {
+    if (i != pivot_idx) {
+      Point p = all_points[i];
+      long long dx = p.x - pivot_.x;
+      long long dy = p.y - pivot_.y;
+
+      Node *new_node = new Node(p, dx, dy);
+      new_node->left = nil_;
+      new_node->right = nil_;
+
+      if (root_ == nullptr) {
+        root_ = new_node;
+        new_node->parent = nil_;
+        new_node->color = Color::RED;
+        size_ = 2;
+        // Note: fix_insert will be called next but let's skip for now to avoid
+        // multiple fixups
+      } else {
+        Node *parent = nil_;
+        Node *current = root_;
+
+        while (current != nil_) {
+          parent = current;
+          if (::compare_nodes(new_node, current)) {
+            current = current->left;
+          } else {
+            current = current->right;
+          }
+        }
+
+        new_node->parent = parent;
+        if (::compare_nodes(new_node, parent)) {
+          parent->left = new_node;
+        } else {
+          parent->right = new_node;
+        }
+        ++size_;
+      }
+    }
+  }
+
+  // Fix entire tree for RBT properties
+  if (root_ != nullptr) {
+    // Recolor root to black and fix all nodes
+    root_->color = Color::BLACK;
+    std::function<void(Node *)> fix_all = [&](Node *node) {
+      if (node == nil_)
+        return;
+      if (node->parent != nil_ && node->color == Color::RED &&
+          node->parent->color == Color::RED) {
+        // This is a violation; do standard fixup
+        ::fix_insert(root_, nil_, node);
+      }
+      fix_all(node->left);
+      fix_all(node->right);
+    };
+    fix_all(root_);
+    root_->color = Color::BLACK;
+  }
+}
 
 DynamicHull::DynamicHull()
     : root_(nullptr), nil_(new Node({0, 0}, 0, 0)), pivot_({0, 0}),
@@ -187,6 +376,73 @@ bool DynamicHull::insert(Point point) {
     pivot_ = point;
     has_pivot_ = true;
     size_ = 1;
+    return true;
+  }
+
+  // Check if point is smaller than pivot (would become new pivot)
+  if (std::tie(point.y, point.x) < std::tie(pivot_.y, pivot_.x)) {
+    // Collect all current points, set new pivot, rebuild tree
+    std::vector<Point> all_points = ordered_points();
+
+    // Clear tree
+    std::function<void(Node *)> delete_tree = [&](Node *node) {
+      if (node == nil_)
+        return;
+      delete_tree(node->left);
+      delete_tree(node->right);
+      delete node;
+    };
+    delete_tree(root_);
+    root_ = nullptr;
+
+    // Set new pivot
+    pivot_ = point;
+    size_ = 1;
+
+    // Re-insert all previous points with new pivot
+    for (const auto &p : all_points) {
+      if (!(p == point)) {
+        long long dx = p.x - pivot_.x;
+        long long dy = p.y - pivot_.y;
+
+        Node *new_node = new Node(p, dx, dy);
+        new_node->left = nil_;
+        new_node->right = nil_;
+
+        if (root_ == nullptr) {
+          root_ = new_node;
+          new_node->parent = nil_;
+          new_node->color = Color::RED;
+          size_ = 2;
+          fix_insert(root_, nil_, new_node);
+        } else {
+          Node *parent = nil_;
+          Node *current = root_;
+
+          while (current != nil_) {
+            parent = current;
+
+            if (compare_nodes(new_node, current)) {
+              current = current->left;
+            } else {
+              current = current->right;
+            }
+          }
+
+          new_node->parent = parent;
+
+          if (compare_nodes(new_node, parent)) {
+            parent->left = new_node;
+          } else {
+            parent->right = new_node;
+          }
+
+          ++size_;
+          fix_insert(root_, nil_, new_node);
+        }
+      }
+    }
+
     return true;
   }
 
@@ -287,8 +543,107 @@ std::vector<Point> DynamicHull::hull(bool include_collinear) const {
 }
 
 bool DynamicHull::erase(Point point) {
-  (void)point; // unused in Task 2
-  return false;
+  // Check if erasing the pivot
+  if (point == pivot_) {
+    if (size_ == 1) {
+      // Only pivot, nothing else
+      has_pivot_ = false;
+      size_ = 0;
+      return true;
+    } else if (root_ == nullptr) {
+      // Shouldn't happen
+      return false;
+    } else {
+      // Pivot deletion: rebuild with next pivot
+      rebuild_with_new_pivot();
+      return true;
+    }
+  }
+
+  // Normal node deletion: find and delete from tree
+  // Find the node
+  Node *current = root_;
+  Node *to_delete = nullptr;
+  while (current != nil_) {
+    if (current->point == point) {
+      to_delete = current;
+      break;
+    }
+
+    long long dx = point.x - pivot_.x;
+    long long dy = point.y - pivot_.y;
+    __int128 distance2 =
+        static_cast<__int128>(dx) * dx + static_cast<__int128>(dy) * dy;
+
+    // Manual comparison
+    const bool curr_upper =
+        current->dy > 0 || (current->dy == 0 && current->dx >= 0);
+    const bool p_upper = dy > 0 || (dy == 0 && dx >= 0);
+
+    bool go_left = false;
+    if (curr_upper != p_upper) {
+      go_left = p_upper > curr_upper;
+    } else {
+      const __int128 cross_prod = static_cast<__int128>(dx) * current->dy -
+                                  static_cast<__int128>(dy) * current->dx;
+      if (cross_prod != 0) {
+        go_left = cross_prod > 0;
+      } else {
+        go_left = distance2 < current->distance2;
+      }
+    }
+
+    if (go_left) {
+      current = current->left;
+    } else {
+      current = current->right;
+    }
+  }
+
+  if (to_delete == nullptr) {
+    return false; // Not found
+  }
+
+  // Perform RBT deletion
+  Node *node_to_fix;
+  Color removed_color;
+
+  if (to_delete->left == nil_) {
+    node_to_fix = to_delete->right;
+    removed_color = to_delete->color;
+    transplant(root_, nil_, to_delete, to_delete->right);
+  } else if (to_delete->right == nil_) {
+    node_to_fix = to_delete->left;
+    removed_color = to_delete->color;
+    transplant(root_, nil_, to_delete, to_delete->left);
+  } else {
+    // Two children: find successor (minimum in right subtree)
+    Node *successor = find_minimum(to_delete->right, nil_);
+    removed_color = successor->color;
+    node_to_fix = successor->right;
+
+    if (successor->parent == to_delete) {
+      // node_to_fix_parent is successor
+    } else {
+      transplant(root_, nil_, successor, successor->right);
+      successor->right = to_delete->right;
+      successor->right->parent = successor;
+    }
+
+    transplant(root_, nil_, to_delete, successor);
+    successor->left = to_delete->left;
+    successor->left->parent = successor;
+    successor->color = to_delete->color;
+  }
+
+  delete to_delete;
+  --size_;
+
+  if (removed_color == Color::BLACK) {
+    fix_delete(root_, nil_, node_to_fix);
+  }
+
+  return true;
 }
 
 std::size_t DynamicHull::size() const { return size_; }

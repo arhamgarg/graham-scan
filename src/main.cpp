@@ -25,6 +25,15 @@ int main(int argc, char *argv[]) {
     const auto points = tree.ordered_points();
     const std::vector<Point> expected{{0, 0}, {2, 0}, {1, 1}};
     assert(points == expected);
+
+    // Task 3: Deletion and pivot rebuilds
+    assert(tree.erase({2, 0}));
+    assert(!tree.erase({2, 0})); // already deleted
+    assert(tree.valid());
+    assert(tree.insert({-1, -1})); // becomes a new pivot
+    assert(tree.valid());
+    assert(tree.erase({-1, -1})); // deletes pivot and rebuilds
+    assert(tree.valid());
   }
 
   return 0;

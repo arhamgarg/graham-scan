@@ -50,4 +50,6 @@ private:
   Point pivot_;
   bool has_pivot_;
   std::size_t size_;
+
+  void rebuild_with_new_pivot();
 };
