@@ -15,29 +15,31 @@
 std::size_t g_alloc_count = 0;
 std::size_t g_alloc_bytes = 0;
 
-void* operator new(std::size_t size) {
+void *operator new(std::size_t size) {
   g_alloc_count++;
   g_alloc_bytes += size;
-  void* ptr = std::malloc(size);
-  if (!ptr) throw std::bad_alloc();
+  void *ptr = std::malloc(size);
+  if (!ptr)
+    throw std::bad_alloc();
   return ptr;
 }
 
-void* operator new[](std::size_t size) {
+void *operator new[](std::size_t size) {
   g_alloc_count++;
   g_alloc_bytes += size;
-  void* ptr = std::malloc(size);
-  if (!ptr) throw std::bad_alloc();
+  void *ptr = std::malloc(size);
+  if (!ptr)
+    throw std::bad_alloc();
   return ptr;
 }
 
-void operator delete(void* ptr) noexcept { std::free(ptr); }
+void operator delete(void *ptr) noexcept { std::free(ptr); }
 
-void operator delete[](void* ptr) noexcept { std::free(ptr); }
+void operator delete[](void *ptr) noexcept { std::free(ptr); }
 
-void operator delete(void* ptr, std::size_t) noexcept { std::free(ptr); }
+void operator delete(void *ptr, std::size_t) noexcept { std::free(ptr); }
 
-void operator delete[](void* ptr, std::size_t) noexcept { std::free(ptr); }
+void operator delete[](void *ptr, std::size_t) noexcept { std::free(ptr); }
 
 // ============================================================================
 // Benchmark Types
@@ -55,11 +57,10 @@ struct AllocationSnapshot {
   std::size_t bytes;
 };
 
-AllocationSnapshot capture_alloc() {
-  return {g_alloc_count, g_alloc_bytes};
-}
+AllocationSnapshot capture_alloc() { return {g_alloc_count, g_alloc_bytes}; }
 
-AllocationSnapshot delta_alloc(AllocationSnapshot before, AllocationSnapshot after) {
+AllocationSnapshot delta_alloc(AllocationSnapshot before,
+                               AllocationSnapshot after) {
   return {after.count - before.count, after.bytes - before.bytes};
 }
 
@@ -151,8 +152,8 @@ std::vector<Point> baseline_hull(std::vector<Point> points,
 // Benchmark Scenarios
 // ============================================================================
 
-BenchmarkReport benchmark_baseline(const std::vector<Point>& points,
-                                    int num_samples) {
+BenchmarkReport benchmark_baseline(const std::vector<Point> &points,
+                                   int num_samples) {
   BenchmarkReport report;
 
   for (int i = 0; i < num_samples; ++i) {
@@ -177,21 +178,21 @@ BenchmarkReport benchmark_baseline(const std::vector<Point>& points,
   return report;
 }
 
-BenchmarkReport benchmark_normal_insert(const std::vector<Point>& points,
-                                         const std::vector<Point>& candidates,
-                                         int num_samples) {
+BenchmarkReport benchmark_normal_insert(const std::vector<Point> &points,
+                                        const std::vector<Point> &candidates,
+                                        int num_samples) {
   BenchmarkReport report;
 
   for (int i = 0; i < num_samples; ++i) {
     DynamicHull tree;
-    for (const auto& p : points) {
+    for (const auto &p : points) {
       tree.insert(p);
     }
 
     AllocationSnapshot before = capture_alloc();
     auto start = std::chrono::steady_clock::now();
 
-    for (const auto& c : candidates) {
+    for (const auto &c : candidates) {
       tree.insert(c);
       tree.hull(false);
     }
@@ -211,7 +212,7 @@ BenchmarkReport benchmark_normal_insert(const std::vector<Point>& points,
           [&]() {
             auto combined = points;
             combined.insert(combined.end(), candidates.begin(),
-                           candidates.end());
+                            candidates.end());
             return combined;
           }(),
           false);
@@ -222,23 +223,23 @@ BenchmarkReport benchmark_normal_insert(const std::vector<Point>& points,
   return report;
 }
 
-BenchmarkReport benchmark_normal_delete(const std::vector<Point>& points,
-                                         const std::vector<Point>& candidates,
-                                         int num_samples) {
+BenchmarkReport benchmark_normal_delete(const std::vector<Point> &points,
+                                        const std::vector<Point> &candidates,
+                                        int num_samples) {
   BenchmarkReport report;
 
   for (int i = 0; i < num_samples; ++i) {
     DynamicHull tree;
     auto combined = points;
     combined.insert(combined.end(), candidates.begin(), candidates.end());
-    for (const auto& p : combined) {
+    for (const auto &p : combined) {
       tree.insert(p);
     }
 
     AllocationSnapshot before = capture_alloc();
     auto start = std::chrono::steady_clock::now();
 
-    for (const auto& c : candidates) {
+    for (const auto &c : candidates) {
       tree.erase(c);
       tree.hull(false);
     }
@@ -262,21 +263,21 @@ BenchmarkReport benchmark_normal_delete(const std::vector<Point>& points,
   return report;
 }
 
-BenchmarkReport benchmark_pivot_insert(const std::vector<Point>& points,
-                                        const std::vector<Point>& candidates,
-                                        int num_samples) {
+BenchmarkReport benchmark_pivot_insert(const std::vector<Point> &points,
+                                       const std::vector<Point> &candidates,
+                                       int num_samples) {
   BenchmarkReport report;
 
   for (int i = 0; i < num_samples; ++i) {
     DynamicHull tree;
-    for (const auto& p : points) {
+    for (const auto &p : points) {
       tree.insert(p);
     }
 
     AllocationSnapshot before = capture_alloc();
     auto start = std::chrono::steady_clock::now();
 
-    for (const auto& c : candidates) {
+    for (const auto &c : candidates) {
       tree.insert(c);
       tree.hull(false);
     }
@@ -296,7 +297,7 @@ BenchmarkReport benchmark_pivot_insert(const std::vector<Point>& points,
           [&]() {
             auto combined = points;
             combined.insert(combined.end(), candidates.begin(),
-                           candidates.end());
+                            candidates.end());
             return combined;
           }(),
           false);
@@ -307,13 +308,13 @@ BenchmarkReport benchmark_pivot_insert(const std::vector<Point>& points,
   return report;
 }
 
-BenchmarkReport benchmark_pivot_delete(const std::vector<Point>& points,
-                                        int num_samples) {
+BenchmarkReport benchmark_pivot_delete(const std::vector<Point> &points,
+                                       int num_samples) {
   BenchmarkReport report;
 
   for (int i = 0; i < num_samples; ++i) {
     DynamicHull tree;
-    for (const auto& p : points) {
+    for (const auto &p : points) {
       tree.insert(p);
     }
 
@@ -350,7 +351,7 @@ BenchmarkReport benchmark_pivot_delete(const std::vector<Point>& points,
   return report;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   assert(cross({0, 0}, {1, 0}, {0, 1}) > 0);
   assert((Point{2, 3} == Point{2, 3}));
 
@@ -389,7 +390,7 @@ int main(int argc, char* argv[]) {
     DynamicHull hull_tree;
     const std::vector<Point> test_points{{0, 0}, {1, 0}, {2, 0},
                                          {2, 2}, {0, 2}, {1, 1}};
-    for (const auto& p : test_points) {
+    for (const auto &p : test_points) {
       hull_tree.insert(p);
     }
 
@@ -404,7 +405,8 @@ int main(int argc, char* argv[]) {
     // Task 5: Benchmark smoke test
     const std::vector<Point> smoke_points{{0, 0}, {1, 0}, {2, 0}};
     const std::vector<Point> smoke_candidates{{1, 1}, {0, 1}};
-    const auto report = benchmark_normal_insert(smoke_points, smoke_candidates, 1);
+    const auto report =
+        benchmark_normal_insert(smoke_points, smoke_candidates, 1);
     assert(report.samples.size() == 1);
     assert(report.hulls_match);
   }
@@ -429,8 +431,9 @@ int main(int argc, char* argv[]) {
 
     printf("Scenario                  | Min (us)  | Median (us) | Max (us)  | "
            "Hulls Match | Allocs | Bytes\n");
-    printf("--------------------------------------------------------------------"
-           "--------\n");
+    printf(
+        "--------------------------------------------------------------------"
+        "--------\n");
 
     // Baseline
     {
@@ -439,85 +442,92 @@ int main(int argc, char* argv[]) {
       std::vector<std::chrono::steady_clock::duration> sorted_samples =
           report.samples;
       std::sort(sorted_samples.begin(), sorted_samples.end());
-      auto min_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(sorted_samples.front())
-              .count();
-      auto max_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(sorted_samples.back())
-              .count();
+      auto min_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        sorted_samples.front())
+                        .count();
+      auto max_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        sorted_samples.back())
+                        .count();
       auto median_us = std::chrono::duration_cast<std::chrono::microseconds>(
                            sorted_samples[sorted_samples.size() / 2])
                            .count();
-      printf("Baseline (std::sort)      | %9lld | %11lld | %8lld  | %10s | %7zu | "
-             "%5zu\n",
-             min_us, median_us, max_us, report.hulls_match ? "yes" : "no",
-             report.alloc_count, report.alloc_bytes);
+      printf(
+          "Baseline (std::sort)      | %9lld | %11lld | %8lld  | %10s | %7zu | "
+          "%5zu\n",
+          min_us, median_us, max_us, report.hulls_match ? "yes" : "no",
+          report.alloc_count, report.alloc_bytes);
     }
 
     // Normal insert
     {
       benchmark_normal_insert(points, candidates, 1); // warm-up
-      BenchmarkReport report = benchmark_normal_insert(points, candidates, num_samples);
+      BenchmarkReport report =
+          benchmark_normal_insert(points, candidates, num_samples);
       std::vector<std::chrono::steady_clock::duration> sorted_samples =
           report.samples;
       std::sort(sorted_samples.begin(), sorted_samples.end());
-      auto min_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(sorted_samples.front())
-              .count();
-      auto max_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(sorted_samples.back())
-              .count();
+      auto min_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        sorted_samples.front())
+                        .count();
+      auto max_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        sorted_samples.back())
+                        .count();
       auto median_us = std::chrono::duration_cast<std::chrono::microseconds>(
                            sorted_samples[sorted_samples.size() / 2])
                            .count();
-      printf("Normal insert + hull      | %9lld | %11lld | %8lld  | %10s | %7zu | "
-             "%5zu\n",
-             min_us, median_us, max_us, report.hulls_match ? "yes" : "no",
-             report.alloc_count, report.alloc_bytes);
+      printf(
+          "Normal insert + hull      | %9lld | %11lld | %8lld  | %10s | %7zu | "
+          "%5zu\n",
+          min_us, median_us, max_us, report.hulls_match ? "yes" : "no",
+          report.alloc_count, report.alloc_bytes);
     }
 
     // Normal delete
     {
       benchmark_normal_delete(points, candidates, 1); // warm-up
-      BenchmarkReport report = benchmark_normal_delete(points, candidates, num_samples);
+      BenchmarkReport report =
+          benchmark_normal_delete(points, candidates, num_samples);
       std::vector<std::chrono::steady_clock::duration> sorted_samples =
           report.samples;
       std::sort(sorted_samples.begin(), sorted_samples.end());
-      auto min_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(sorted_samples.front())
-              .count();
-      auto max_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(sorted_samples.back())
-              .count();
+      auto min_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        sorted_samples.front())
+                        .count();
+      auto max_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        sorted_samples.back())
+                        .count();
       auto median_us = std::chrono::duration_cast<std::chrono::microseconds>(
                            sorted_samples[sorted_samples.size() / 2])
                            .count();
-      printf("Normal delete + hull      | %9lld | %11lld | %8lld  | %10s | %7zu | "
-             "%5zu\n",
-             min_us, median_us, max_us, report.hulls_match ? "yes" : "no",
-             report.alloc_count, report.alloc_bytes);
+      printf(
+          "Normal delete + hull      | %9lld | %11lld | %8lld  | %10s | %7zu | "
+          "%5zu\n",
+          min_us, median_us, max_us, report.hulls_match ? "yes" : "no",
+          report.alloc_count, report.alloc_bytes);
     }
 
     // Pivot-changing insert
     {
       benchmark_pivot_insert(points, candidates, 1); // warm-up
-      BenchmarkReport report = benchmark_pivot_insert(points, candidates, num_samples);
+      BenchmarkReport report =
+          benchmark_pivot_insert(points, candidates, num_samples);
       std::vector<std::chrono::steady_clock::duration> sorted_samples =
           report.samples;
       std::sort(sorted_samples.begin(), sorted_samples.end());
-      auto min_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(sorted_samples.front())
-              .count();
-      auto max_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(sorted_samples.back())
-              .count();
+      auto min_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        sorted_samples.front())
+                        .count();
+      auto max_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        sorted_samples.back())
+                        .count();
       auto median_us = std::chrono::duration_cast<std::chrono::microseconds>(
                            sorted_samples[sorted_samples.size() / 2])
                            .count();
-      printf("Pivot-changing insert     | %9lld | %11lld | %8lld  | %10s | %7zu | "
-             "%5zu\n",
-             min_us, median_us, max_us, report.hulls_match ? "yes" : "no",
-             report.alloc_count, report.alloc_bytes);
+      printf(
+          "Pivot-changing insert     | %9lld | %11lld | %8lld  | %10s | %7zu | "
+          "%5zu\n",
+          min_us, median_us, max_us, report.hulls_match ? "yes" : "no",
+          report.alloc_count, report.alloc_bytes);
     }
 
     // Pivot delete
@@ -527,19 +537,20 @@ int main(int argc, char* argv[]) {
       std::vector<std::chrono::steady_clock::duration> sorted_samples =
           report.samples;
       std::sort(sorted_samples.begin(), sorted_samples.end());
-      auto min_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(sorted_samples.front())
-              .count();
-      auto max_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(sorted_samples.back())
-              .count();
+      auto min_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        sorted_samples.front())
+                        .count();
+      auto max_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                        sorted_samples.back())
+                        .count();
       auto median_us = std::chrono::duration_cast<std::chrono::microseconds>(
                            sorted_samples[sorted_samples.size() / 2])
                            .count();
-      printf("Pivot deletion + rebuild  | %9lld | %11lld | %8lld  | %10s | %7zu | "
-             "%5zu\n",
-             min_us, median_us, max_us, report.hulls_match ? "yes" : "no",
-             report.alloc_count, report.alloc_bytes);
+      printf(
+          "Pivot deletion + rebuild  | %9lld | %11lld | %8lld  | %10s | %7zu | "
+          "%5zu\n",
+          min_us, median_us, max_us, report.hulls_match ? "yes" : "no",
+          report.alloc_count, report.alloc_bytes);
     }
   }
 
