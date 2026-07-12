@@ -1,6 +1,5 @@
 #include <algorithm>
 #ifdef NDEBUG
-#undef NDEBUG
 #endif
 #include <cassert>
 #include <chrono>
@@ -8,11 +7,7 @@
 #include <cstring>
 #include <vector>
 
-#include "rbt.hpp"
-
-// ============================================================================
-// Allocation Tracking
-// ============================================================================
+#include "../include/rbt.hpp"
 
 std::size_t g_alloc_count = 0;
 std::size_t g_alloc_bytes = 0;
@@ -43,10 +38,6 @@ void operator delete(void *ptr, std::size_t) noexcept { std::free(ptr); }
 
 void operator delete[](void *ptr, std::size_t) noexcept { std::free(ptr); }
 
-// ============================================================================
-// Benchmark Types
-// ============================================================================
-
 struct BenchmarkReport {
   std::vector<std::chrono::steady_clock::duration> samples;
   std::size_t alloc_count = 0;
@@ -66,7 +57,6 @@ AllocationSnapshot delta_alloc(AllocationSnapshot before,
   return {after.count - before.count, after.bytes - before.bytes};
 }
 
-// Baseline Graham scan using std::sort
 std::vector<Point> baseline_hull(std::vector<Point> points,
                                  bool include_collinear) {
   if (points.empty())
@@ -74,35 +64,30 @@ std::vector<Point> baseline_hull(std::vector<Point> points,
   if (points.size() == 1)
     return points;
 
-  // Find pivot (minimum (y, x))
   Point pivot = *std::min_element(
       points.begin(), points.end(), [](const Point &a, const Point &b) {
         return std::tie(a.y, a.x) < std::tie(b.y, b.x);
       });
 
-  // Sort by polar order from pivot
   std::sort(points.begin(), points.end(), [&](const Point &a, const Point &b) {
     if (a == pivot)
-      return true; // pivot first
+      return true;
     if (b == pivot)
       return false;
 
     long long dx_a = a.x - pivot.x, dy_a = a.y - pivot.y;
     long long dx_b = b.x - pivot.x, dy_b = b.y - pivot.y;
 
-    // Upper-half plane test
     bool a_upper = dy_a > 0 || (dy_a == 0 && dx_a >= 0);
     bool b_upper = dy_b > 0 || (dy_b == 0 && dx_b >= 0);
     if (a_upper != b_upper)
       return a_upper;
 
-    // Cross product for angular ordering
     __int128 cross_prod =
         static_cast<__int128>(dx_a) * dy_b - static_cast<__int128>(dy_a) * dx_b;
     if (cross_prod != 0)
       return cross_prod > 0;
 
-    // Distance squared (closer first)
     __int128 dist_a =
         static_cast<__int128>(dx_a) * dx_a + static_cast<__int128>(dy_a) * dy_a;
     __int128 dist_b =
@@ -110,7 +95,6 @@ std::vector<Point> baseline_hull(std::vector<Point> points,
     return dist_a < dist_b;
   });
 
-  // Graham's scan stack
   std::vector<Point> hull;
   for (const auto &p : points) {
     while (hull.size() > 1) {
@@ -132,10 +116,6 @@ std::vector<Point> baseline_hull(std::vector<Point> points,
 
   return hull;
 }
-
-// ============================================================================
-// Benchmark Scenarios
-// ============================================================================
 
 BenchmarkReport benchmark_baseline(const std::vector<Point> &points,
                                    int num_samples) {
@@ -258,7 +238,6 @@ BenchmarkReport benchmark_pivot_delete(const std::vector<Point> &points,
       tree.insert(p);
     }
 
-    // Identify pivot before deletion
     auto ordered = tree.ordered_points();
     Point pivot_to_delete = ordered[0];
 
@@ -323,29 +302,27 @@ int main(int argc, char *argv[]) {
     assert(tree.insert({0, 0}));
     assert(tree.insert({2, 0}));
     assert(tree.insert({1, 1}));
-    assert(!tree.insert({1, 1})); // duplicate
+    assert(!tree.insert({1, 1}));
     assert(tree.size() == 3);
     assert(tree.valid());
     const auto points = tree.ordered_points();
     const std::vector<Point> expected{{0, 0}, {2, 0}, {1, 1}};
     assert(points == expected);
 
-    // Task 3: Deletion and pivot rebuilds
     assert(tree.erase({2, 0}));
-    assert(!tree.erase({2, 0})); // already deleted
+    assert(!tree.erase({2, 0}));
     assert(tree.valid());
-    assert(tree.insert({-1, -1})); // becomes a new pivot
+    assert(tree.insert({-1, -1}));
     assert(tree.valid());
     const auto size_before_pivot_erase = tree.size();
-    assert(tree.erase({-1, -1})); // deletes pivot and rebuilds
+    assert(tree.erase({-1, -1}));
     assert(tree.size() == size_before_pivot_erase - 1);
     const auto points_after_pivot_erase = tree.ordered_points();
     assert(std::find(points_after_pivot_erase.begin(),
-                     points_after_pivot_erase.end(), Point{-1, -1}) ==
-           points_after_pivot_erase.end());
+                     points_after_pivot_erase.end(),
+                     Point{-1, -1}) == points_after_pivot_erase.end());
     assert(tree.valid());
 
-    // Task 4: Hull construction
     DynamicHull hull_tree;
     const std::vector<Point> test_points{{0, 0}, {1, 0}, {2, 0},
                                          {2, 2}, {0, 2}, {1, 1}};
@@ -361,7 +338,6 @@ int main(int argc, char *argv[]) {
     const auto base_hull_incl = baseline_hull(test_points, true);
     assert(tree_hull_incl == base_hull_incl);
 
-    // Task 5: Benchmark smoke test
     const std::vector<Point> smoke_points{{0, 0}, {1, 0}, {2, 0}};
     const std::vector<Point> smoke_candidates{{1, 1}, {0, 1}};
     const auto report =
@@ -371,21 +347,17 @@ int main(int argc, char *argv[]) {
   }
 
   if (run_benchmark) {
-    // Fixed seed for reproducibility
     std::vector<Point> points;
     std::vector<Point> candidates;
 
-    // Generate 100 baseline points
     for (int i = 0; i < 100; ++i) {
       points.push_back({i, (i * 37 + 13) % 128});
     }
 
-    // Generate 50 candidate points
     for (int i = 0; i < 50; ++i) {
       candidates.push_back({i * 2, (i * 61 + 29) % 256});
     }
 
-    // Run 1 warm-up + 31 samples
     const int num_samples = 31;
 
     printf("Scenario                  | Min (us)  | Median (us) | Max (us)  | "

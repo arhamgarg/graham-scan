@@ -1,12 +1,8 @@
-#include "rbt.hpp"
+#include "../include/rbt.hpp"
 
-#include <algorithm>
 #include <cassert>
 #include <cstdlib>
 #include <functional>
-#include <tuple>
-#include <utility>
-#include <vector>
 
 int cross(Point a, Point b, Point c) {
   const __int128 value =
@@ -17,22 +13,18 @@ int cross(Point a, Point b, Point c) {
 
 namespace {
 
-// Compare two nodes for ordering. Returns true if a < b in Graham-scan order.
 bool compare_nodes(const Node *a, const Node *b) {
-  // Upper-half plane test
   const bool a_upper = a->dy > 0 || (a->dy == 0 && a->dx >= 0);
   const bool b_upper = b->dy > 0 || (b->dy == 0 && b->dx >= 0);
 
   if (a_upper != b_upper)
-    return a_upper > b_upper; // upper half comes first
+    return a_upper > b_upper;
 
-  // Cross product for angular ordering
   const __int128 cross_prod = static_cast<__int128>(a->dx) * b->dy -
                               static_cast<__int128>(a->dy) * b->dx;
   if (cross_prod != 0)
     return cross_prod > 0;
 
-  // Distance squared (closer first)
   return a->distance2 < b->distance2;
 }
 
@@ -132,7 +124,6 @@ bool validate_rbt(Node *node, Node *nil, int &black_height,
     return black_height == current_black_count;
   }
 
-  // Red node cannot have red parent
   if (node->color == Color::RED && node->parent->color == Color::RED) {
     return false;
   }
@@ -161,7 +152,6 @@ bool validate_sorted(Node *node, Node *nil, Node *&last) {
   return validate_sorted(node->right, nil, last);
 }
 
-// Find the node with minimum value (leftmost)
 Node *find_minimum(Node *node, Node *nil) {
   while (node->left != nil) {
     node = node->left;
@@ -169,7 +159,6 @@ Node *find_minimum(Node *node, Node *nil) {
   return node;
 }
 
-// Transplant: replace subtree rooted at u with subtree rooted at v
 void transplant(Node *&root, Node *nil, Node *u, Node *v) {
   if (u->parent == nil) {
     root = v;
@@ -186,7 +175,6 @@ void fix_delete(Node *&root, Node *nil, Node *x) {
     if (x == x->parent->left) {
       Node *s = x->parent->right;
 
-      // Case 1: x's sibling is red
       if (s->color == Color::RED) {
         s->color = Color::BLACK;
         x->parent->color = Color::RED;
@@ -194,13 +182,10 @@ void fix_delete(Node *&root, Node *nil, Node *x) {
         s = x->parent->right;
       }
 
-      // Case 2: x's sibling is black and both siblings' children are black
       if (s->left->color == Color::BLACK && s->right->color == Color::BLACK) {
         s->color = Color::RED;
         x = x->parent;
       } else {
-        // Case 3: x's sibling is black, sibling's left child is red, right is
-        // black
         if (s->right->color == Color::BLACK) {
           s->left->color = Color::BLACK;
           s->color = Color::RED;
@@ -208,7 +193,6 @@ void fix_delete(Node *&root, Node *nil, Node *x) {
           s = x->parent->right;
         }
 
-        // Case 4: x's sibling is black and sibling's right child is red
         s->color = x->parent->color;
         x->parent->color = Color::BLACK;
         s->right->color = Color::BLACK;
@@ -247,7 +231,7 @@ void fix_delete(Node *&root, Node *nil, Node *x) {
   x->color = Color::BLACK;
 }
 
-} // namespace
+}
 
 void DynamicHull::clear() {
   std::function<void(Node *)> delete_tree = [&](Node *node) {
@@ -268,8 +252,8 @@ void DynamicHull::rebuild(std::vector<Point> points) {
   if (points.empty())
     return;
 
-  const auto pivot = std::min_element(
-      points.begin(), points.end(), [](Point a, Point b) {
+  const auto pivot =
+      std::min_element(points.begin(), points.end(), [](Point a, Point b) {
         return std::tie(a.y, a.x) < std::tie(b.y, b.x);
       });
   std::iter_swap(points.begin(), pivot);
@@ -298,7 +282,6 @@ bool DynamicHull::insert(Point point) {
     return true;
   }
 
-  // Check if point is smaller than pivot (would become new pivot)
   if (std::tie(point.y, point.x) < std::tie(pivot_.y, pivot_.x)) {
     std::vector<Point> all_points = ordered_points();
     all_points.push_back(point);
@@ -306,7 +289,6 @@ bool DynamicHull::insert(Point point) {
     return true;
   }
 
-  // Check for duplicate
   if (point == pivot_)
     return false;
 
@@ -383,22 +365,18 @@ bool DynamicHull::valid() const {
   if (root_ == nil_)
     return size_ == 1;
 
-  // Root must be black
   if (root_->color != Color::BLACK)
     return false;
 
-  // Check red-black properties
   int black_height = -1;
   if (!validate_rbt(root_, const_cast<Node *>(nil_), black_height, 0))
     return false;
 
-  // Check sorted order
   Node *last = const_cast<Node *>(nil_);
   return validate_sorted(root_, const_cast<Node *>(nil_), last);
 }
 
 std::vector<Point> DynamicHull::hull(bool include_collinear) const {
-  // Get ordered points (pivot is first)
   std::vector<Point> points = ordered_points();
 
   if (points.empty())
@@ -406,7 +384,6 @@ std::vector<Point> DynamicHull::hull(bool include_collinear) const {
   if (points.size() == 1)
     return points;
 
-  // Graham's scan stack
   std::vector<Point> result;
   for (const auto &p : points) {
     while (result.size() > 1) {
@@ -430,15 +407,12 @@ std::vector<Point> DynamicHull::hull(bool include_collinear) const {
 }
 
 bool DynamicHull::erase(Point point) {
-  // Check if erasing the pivot
   if (point == pivot_) {
     if (size_ == 1) {
-      // Only pivot, nothing else
       has_pivot_ = false;
       size_ = 0;
       return true;
     } else if (root_ == nullptr) {
-      // Shouldn't happen
       return false;
     } else {
       auto points = ordered_points();
@@ -448,8 +422,6 @@ bool DynamicHull::erase(Point point) {
     }
   }
 
-  // Normal node deletion: find and delete from tree
-  // Find the node
   Node *current = root_;
   Node *to_delete = nullptr;
   while (current != nil_) {
@@ -463,7 +435,6 @@ bool DynamicHull::erase(Point point) {
     __int128 distance2 =
         static_cast<__int128>(dx) * dx + static_cast<__int128>(dy) * dy;
 
-    // Manual comparison
     const bool curr_upper =
         current->dy > 0 || (current->dy == 0 && current->dx >= 0);
     const bool p_upper = dy > 0 || (dy == 0 && dx >= 0);
@@ -489,10 +460,9 @@ bool DynamicHull::erase(Point point) {
   }
 
   if (to_delete == nullptr) {
-    return false; // Not found
+    return false;
   }
 
-  // Perform RBT deletion
   Node *node_to_fix;
   Color removed_color;
 
@@ -505,13 +475,11 @@ bool DynamicHull::erase(Point point) {
     removed_color = to_delete->color;
     transplant(root_, nil_, to_delete, to_delete->left);
   } else {
-    // Two children: find successor (minimum in right subtree)
     Node *successor = find_minimum(to_delete->right, nil_);
     removed_color = successor->color;
     node_to_fix = successor->right;
 
     if (successor->parent == to_delete) {
-      // node_to_fix_parent is successor
     } else {
       transplant(root_, nil_, successor, successor->right);
       successor->right = to_delete->right;
