@@ -3,7 +3,6 @@
 #include <cassert>
 #include <cstdlib>
 #include <functional>
-#include <tuple>
 #include <vector>
 
 int cross(Point a, Point b, Point c) {
