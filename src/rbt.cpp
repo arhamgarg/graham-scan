@@ -5,10 +5,8 @@
 
 int cross(Point a, Point b, Point c) {
   const __int128 value =
-      (static_cast<__int128>(b.x) - a.x) *
-          (static_cast<__int128>(c.y) - a.y) -
-      (static_cast<__int128>(b.y) - a.y) *
-          (static_cast<__int128>(c.x) - a.x);
+      (static_cast<__int128>(b.x) - a.x) * (static_cast<__int128>(c.y) - a.y) -
+      (static_cast<__int128>(b.y) - a.y) * (static_cast<__int128>(c.x) - a.x);
   return (value > 0) - (value < 0);
 }
 
