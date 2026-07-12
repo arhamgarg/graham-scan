@@ -1,8 +1,11 @@
 #include "rbt.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdlib>
 #include <functional>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 int cross(Point a, Point b, Point c) {
@@ -32,9 +35,6 @@ bool compare_nodes(const Node *a, const Node *b) {
   // Distance squared (closer first)
   return a->distance2 < b->distance2;
 }
-
-// Check if two nodes are equal (duplicates)
-bool nodes_equal(const Node *a, const Node *b) { return a->point == b->point; }
 
 void rotate_left(Node *&root, Node *nil, Node *x) {
   Node *y = x->right;
@@ -249,23 +249,7 @@ void fix_delete(Node *&root, Node *nil, Node *x) {
 
 } // namespace
 
-// Rebuild tree with new pivot
-void DynamicHull::rebuild_with_new_pivot() {
-  // Collect all points
-  std::vector<Point> all_points;
-  all_points.push_back(pivot_);
-
-  // Collect from tree
-  std::function<void(Node *)> collect = [&](Node *node) {
-    if (node == nil_)
-      return;
-    collect(node->left);
-    all_points.push_back(node->point);
-    collect(node->right);
-  };
-  collect(root_);
-
-  // Delete old tree
+void DynamicHull::clear() {
   std::function<void(Node *)> delete_tree = [&](Node *node) {
     if (node == nil_)
       return;
@@ -275,80 +259,22 @@ void DynamicHull::rebuild_with_new_pivot() {
   };
   delete_tree(root_);
   root_ = nullptr;
+  has_pivot_ = false;
+  size_ = 0;
+}
 
-  // Find new pivot (minimum (y, x))
-  Point new_pivot = all_points[0];
-  size_t pivot_idx = 0;
-  for (size_t i = 1; i < all_points.size(); ++i) {
-    if (std::tie(all_points[i].y, all_points[i].x) <
-        std::tie(new_pivot.y, new_pivot.x)) {
-      new_pivot = all_points[i];
-      pivot_idx = i;
-    }
-  }
+void DynamicHull::rebuild(std::vector<Point> points) {
+  clear();
+  if (points.empty())
+    return;
 
-  pivot_ = new_pivot;
-  size_ = 1;
-
-  // Re-insert all other points
-  for (size_t i = 0; i < all_points.size(); ++i) {
-    if (i != pivot_idx) {
-      Point p = all_points[i];
-      long long dx = p.x - pivot_.x;
-      long long dy = p.y - pivot_.y;
-
-      Node *new_node = new Node(p, dx, dy);
-      new_node->left = nil_;
-      new_node->right = nil_;
-
-      if (root_ == nullptr) {
-        root_ = new_node;
-        new_node->parent = nil_;
-        new_node->color = Color::RED;
-        size_ = 2;
-        // Note: fix_insert will be called next but let's skip for now to avoid
-        // multiple fixups
-      } else {
-        Node *parent = nil_;
-        Node *current = root_;
-
-        while (current != nil_) {
-          parent = current;
-          if (::compare_nodes(new_node, current)) {
-            current = current->left;
-          } else {
-            current = current->right;
-          }
-        }
-
-        new_node->parent = parent;
-        if (::compare_nodes(new_node, parent)) {
-          parent->left = new_node;
-        } else {
-          parent->right = new_node;
-        }
-        ++size_;
-      }
-    }
-  }
-
-  // Fix entire tree for RBT properties
-  if (root_ != nullptr) {
-    // Recolor root to black and fix all nodes
-    root_->color = Color::BLACK;
-    std::function<void(Node *)> fix_all = [&](Node *node) {
-      if (node == nil_)
-        return;
-      if (node->parent != nil_ && node->color == Color::RED &&
-          node->parent->color == Color::RED) {
-        // This is a violation; do standard fixup
-        ::fix_insert(root_, nil_, node);
-      }
-      fix_all(node->left);
-      fix_all(node->right);
-    };
-    fix_all(root_);
-    root_->color = Color::BLACK;
+  const auto pivot = std::min_element(
+      points.begin(), points.end(), [](Point a, Point b) {
+        return std::tie(a.y, a.x) < std::tie(b.y, b.x);
+      });
+  std::iter_swap(points.begin(), pivot);
+  for (const auto point : points) {
+    insert(point);
   }
 }
 
@@ -360,14 +286,7 @@ DynamicHull::DynamicHull()
 }
 
 DynamicHull::~DynamicHull() {
-  std::function<void(Node *)> delete_tree = [&](Node *node) {
-    if (node == nil_)
-      return;
-    delete_tree(node->left);
-    delete_tree(node->right);
-    delete node;
-  };
-  delete_tree(root_);
+  clear();
   delete nil_;
 }
 
@@ -381,68 +300,9 @@ bool DynamicHull::insert(Point point) {
 
   // Check if point is smaller than pivot (would become new pivot)
   if (std::tie(point.y, point.x) < std::tie(pivot_.y, pivot_.x)) {
-    // Collect all current points, set new pivot, rebuild tree
     std::vector<Point> all_points = ordered_points();
-
-    // Clear tree
-    std::function<void(Node *)> delete_tree = [&](Node *node) {
-      if (node == nil_)
-        return;
-      delete_tree(node->left);
-      delete_tree(node->right);
-      delete node;
-    };
-    delete_tree(root_);
-    root_ = nullptr;
-
-    // Set new pivot
-    pivot_ = point;
-    size_ = 1;
-
-    // Re-insert all previous points with new pivot
-    for (const auto &p : all_points) {
-      if (!(p == point)) {
-        long long dx = p.x - pivot_.x;
-        long long dy = p.y - pivot_.y;
-
-        Node *new_node = new Node(p, dx, dy);
-        new_node->left = nil_;
-        new_node->right = nil_;
-
-        if (root_ == nullptr) {
-          root_ = new_node;
-          new_node->parent = nil_;
-          new_node->color = Color::RED;
-          size_ = 2;
-          fix_insert(root_, nil_, new_node);
-        } else {
-          Node *parent = nil_;
-          Node *current = root_;
-
-          while (current != nil_) {
-            parent = current;
-
-            if (compare_nodes(new_node, current)) {
-              current = current->left;
-            } else {
-              current = current->right;
-            }
-          }
-
-          new_node->parent = parent;
-
-          if (compare_nodes(new_node, parent)) {
-            parent->left = new_node;
-          } else {
-            parent->right = new_node;
-          }
-
-          ++size_;
-          fix_insert(root_, nil_, new_node);
-        }
-      }
-    }
-
+    all_points.push_back(point);
+    rebuild(std::move(all_points));
     return true;
   }
 
@@ -472,7 +332,7 @@ bool DynamicHull::insert(Point point) {
   while (current != nil_) {
     parent = current;
 
-    if (nodes_equal(new_node, current)) {
+    if (new_node->point == current->point) {
       delete new_node;
       return false;
     }
@@ -581,8 +441,9 @@ bool DynamicHull::erase(Point point) {
       // Shouldn't happen
       return false;
     } else {
-      // Pivot deletion: rebuild with next pivot
-      rebuild_with_new_pivot();
+      auto points = ordered_points();
+      points.erase(points.begin());
+      rebuild(std::move(points));
       return true;
     }
   }

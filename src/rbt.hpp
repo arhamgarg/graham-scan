@@ -51,5 +51,6 @@ private:
   bool has_pivot_;
   std::size_t size_;
 
-  void rebuild_with_new_pivot();
+  void clear();
+  void rebuild(std::vector<Point> points);
 };
