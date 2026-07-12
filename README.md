@@ -4,8 +4,17 @@ A C++17 implementation of a dynamic point set maintaining convex hulls using a R
 
 ## Build
 
+### Make
+
 ```bash
-g++ -std=c++17 -O3 -Wall -Wextra -Wpedantic src/main.cpp src/rbt.cpp -o hull
+make
+```
+
+### CMake
+
+```bash
+cmake -S . -B build/cmake -DCMAKE_BUILD_TYPE=Release
+cmake --build build/cmake
 ```
 
 ## Run
@@ -13,13 +22,19 @@ g++ -std=c++17 -O3 -Wall -Wextra -Wpedantic src/main.cpp src/rbt.cpp -o hull
 ### Self-Test
 Validates insertion, deletion, pivot changes, hull construction, and allocation tracking:
 ```bash
-./hull --self-test
+build/make/hull --self-test
+```
+
+Or run the CMake-registered test:
+
+```bash
+ctest --test-dir build/cmake --output-on-failure
 ```
 
 ### Benchmark
 Runs reproducible timing benchmarks across 5 scenarios (baseline sort, normal insert, normal delete, pivot-changing insert, pivot deletion) with 31 samples each:
 ```bash
-./hull --benchmark
+build/make/hull --benchmark
 ```
 
 ## Profiling
@@ -28,18 +43,18 @@ Runs reproducible timing benchmarks across 5 scenarios (baseline sort, normal in
 
 System-wide performance counters:
 ```bash
-perf stat ./hull --benchmark
+perf stat build/make/hull --benchmark
 ```
 
 Detailed call graph recording:
 ```bash
-perf record -g ./hull --benchmark
+perf record -g build/make/hull --benchmark
 perf report
 ```
 
 Memory usage profiling:
 ```bash
-valgrind --tool=massif ./hull --benchmark
+valgrind --tool=massif build/make/hull --benchmark
 ms_print massif.out.* | head -100
 ```
 
@@ -47,12 +62,12 @@ ms_print massif.out.* | head -100
 
 Time profiler (CPU cycles):
 ```bash
-xcrun xctrace record --template 'Time Profiler' --launch -- ./hull --benchmark
+xcrun xctrace record --template 'Time Profiler' --launch -- build/make/hull --benchmark
 ```
 
 Memory allocation profiler:
 ```bash
-xcrun xctrace record --template Allocations --launch -- ./hull --benchmark
+xcrun xctrace record --template Allocations --launch -- build/make/hull --benchmark
 ```
 
 ## Architecture
@@ -65,9 +80,11 @@ xcrun xctrace record --template Allocations --launch -- ./hull --benchmark
 
 ## Files
 
-- `src/rbt.hpp`: Public interface (Point, DynamicHull class, Color enum)
+- `include/rbt.hpp`: Public interface (Point, DynamicHull class, Color enum)
 - `src/rbt.cpp`: RBT implementation (rotations, rebalancing, insertion, deletion, validation)
 - `src/main.cpp`: Self-tests, baseline Graham scan, benchmark harness, allocation tracking
+- `Makefile`: Make build producing `build/make/hull`
+- `CMakeLists.txt`: CMake build and CTest registration producing `build/cmake/hull`
 
 ## Performance Characteristics
 
