@@ -553,29 +553,30 @@ int main(int argc, char *argv[]) {
     test_statistics();
     test_benchmark_smoke();
     DynamicHull tree;
-    assert(tree.insert({0, 0}));
-    assert(tree.insert({2, 0}));
-    assert(tree.insert({1, 1}));
-    assert(!tree.insert({1, 1}));
-    assert(tree.size() == 3);
-    assert(tree.valid());
+    expect(tree.insert({0, 0}), "first insert accepted");
+    expect(tree.insert({2, 0}), "second insert accepted");
+    expect(tree.insert({1, 1}), "third insert accepted");
+    expect(!tree.insert({1, 1}), "duplicate insert rejected");
+    expect(tree.size() == 3, "inserted tree size");
+    expect(tree.valid(), "inserted tree invariants");
     const auto points = tree.ordered_points();
     const std::vector<Point> expected{{0, 0}, {2, 0}, {1, 1}};
-    assert(points == expected);
+    expect(points == expected, "inserted tree order");
 
-    assert(tree.erase({2, 0}));
-    assert(!tree.erase({2, 0}));
-    assert(tree.valid());
-    assert(tree.insert({-1, -1}));
-    assert(tree.valid());
+    expect(tree.erase({2, 0}), "erase accepted");
+    expect(!tree.erase({2, 0}), "missing erase rejected");
+    expect(tree.valid(), "erased tree invariants");
+    expect(tree.insert({-1, -1}), "pivot insert accepted");
+    expect(tree.valid(), "pivot insert invariants");
     const auto size_before_pivot_erase = tree.size();
-    assert(tree.erase({-1, -1}));
-    assert(tree.size() == size_before_pivot_erase - 1);
+    expect(tree.erase({-1, -1}), "pivot erase accepted");
+    expect(tree.size() == size_before_pivot_erase - 1, "pivot erase size");
     const auto points_after_pivot_erase = tree.ordered_points();
-    assert(std::find(points_after_pivot_erase.begin(),
+    expect(std::find(points_after_pivot_erase.begin(),
                      points_after_pivot_erase.end(),
-                     Point{-1, -1}) == points_after_pivot_erase.end());
-    assert(tree.valid());
+                     Point{-1, -1}) == points_after_pivot_erase.end(),
+           "erased pivot absent");
+    expect(tree.valid(), "pivot erase invariants");
 
     DynamicHull hull_tree;
     const std::vector<Point> test_points{{0, 0}, {1, 0}, {2, 0},
@@ -586,11 +587,11 @@ int main(int argc, char *argv[]) {
 
     const auto tree_hull_excl = hull_tree.hull(false);
     const auto base_hull_excl = baseline_hull(test_points, false);
-    assert(tree_hull_excl == base_hull_excl);
+    expect(tree_hull_excl == base_hull_excl, "exclusive hull");
 
     const auto tree_hull_incl = hull_tree.hull(true);
     const auto base_hull_incl = baseline_hull(test_points, true);
-    assert(tree_hull_incl == base_hull_incl);
+    expect(tree_hull_incl == base_hull_incl, "inclusive hull");
 
   }
 
