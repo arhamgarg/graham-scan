@@ -7,11 +7,15 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iomanip>
+#include <iostream>
 #include <memory>
 #include <numeric>
 #include <random>
 #include <set>
+#include <sstream>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -153,6 +157,93 @@ Summary summarize(std::vector<double> samples) {
           nearest_rank(samples, 0.75),
           nearest_rank(samples, 0.95),
           nearest_rank(samples, 0.99)};
+}
+
+struct DurationUnit {
+  double divisor;
+  const char *suffix;
+};
+
+DurationUnit duration_unit(double nanoseconds) {
+  if (nanoseconds >= 1e9)
+    return {1e9, "s"};
+  if (nanoseconds >= 1e6)
+    return {1e6, "ms"};
+  if (nanoseconds >= 1e3)
+    return {1e3, "us"};
+  return {1.0, "ns"};
+}
+
+std::string duration(double nanoseconds, DurationUnit unit) {
+  std::ostringstream output;
+  output << std::fixed << std::setprecision(3)
+         << nanoseconds / unit.divisor << unit.suffix;
+  return output.str();
+}
+
+const char *operating_system() {
+#if defined(__APPLE__)
+  return "macOS";
+#elif defined(__linux__)
+  return "Linux";
+#elif defined(_WIN32)
+  return "Windows";
+#else
+  return "unknown";
+#endif
+}
+
+const char *architecture() {
+#if defined(__aarch64__) || defined(_M_ARM64)
+  return "arm64";
+#elif defined(__x86_64__) || defined(_M_X64)
+  return "x86_64";
+#else
+  return "unknown";
+#endif
+}
+
+const char *optimization_mode() {
+#ifdef __OPTIMIZE__
+  return "enabled";
+#else
+  return "disabled";
+#endif
+}
+
+void print_reports(const std::vector<BenchmarkReport> &reports) {
+  std::cout << std::left << std::setw(24) << "benchmark" << std::right
+            << std::setw(7) << "runs" << std::setw(13) << "total"
+            << std::setw(24) << "mean +- sd" << std::setw(13) << "min"
+            << std::setw(13) << "median" << std::setw(13) << "max"
+            << std::setw(13) << "p75" << std::setw(13) << "p95"
+            << std::setw(13) << "p99" << '\n'
+            << std::string(145, '-') << '\n';
+  for (const auto &report : reports) {
+    const auto summary = summarize(report.samples);
+    const auto unit = duration_unit(summary.mean);
+    const auto mean_sd = duration(summary.mean, unit) + " +- " +
+                         duration(summary.sd, unit);
+    std::cout << std::left << std::setw(24) << report.name << std::right
+              << std::setw(7) << report.samples.size() << std::setw(13)
+              << duration(summary.total, unit) << std::setw(24) << mean_sd
+              << std::setw(13) << duration(summary.min, unit)
+              << std::setw(13) << duration(summary.median, unit)
+              << std::setw(13) << duration(summary.max, unit)
+              << std::setw(13) << duration(summary.p75, unit)
+              << std::setw(13) << duration(summary.p95, unit)
+              << std::setw(13) << duration(summary.p99, unit) << '\n';
+  }
+
+  std::cout << "\n" << std::left << std::setw(24) << "benchmark"
+            << std::right << std::setw(18) << "allocations/op"
+            << std::setw(18) << "bytes/op" << '\n'
+            << std::string(60, '-') << '\n';
+  for (const auto &report : reports)
+    std::cout << std::left << std::setw(24) << report.name << std::right
+              << std::fixed << std::setprecision(3) << std::setw(18)
+              << report.allocations_per_operation << std::setw(18)
+              << report.bytes_per_operation << '\n';
 }
 
 struct AllocationSnapshot {
@@ -504,10 +595,20 @@ int main(int argc, char *argv[]) {
   }
 
   if (run_benchmark) {
-    const BenchmarkConfig config{100, 0xC0FFEE, 1, 31, 50};
+    const BenchmarkConfig config{100000, 0xC0FFEE, 3, 101, 256};
     const auto dataset = generate_dataset(config);
     verify_workloads(dataset);
-    (void)run_benchmarks(dataset, config);
+
+    std::cout << "Dataset size: " << config.dataset_size
+              << " unique random points\n"
+              << "Seed: " << config.seed << '\n'
+              << "Warm-ups: " << config.warmups << '\n'
+              << "Measured runs: " << config.runs << '\n'
+              << "Compiler: " << __VERSION__ << '\n'
+              << "Optimization: " << optimization_mode() << '\n'
+              << "Platform: " << operating_system() << ' ' << architecture()
+              << "\n\n";
+    print_reports(run_benchmarks(dataset, config));
   }
 
   return 0;
