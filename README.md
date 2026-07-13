@@ -20,7 +20,7 @@ cmake --build build/cmake
 ## Run
 
 ### Self-Test
-Validates insertion, deletion, pivot changes, hull construction, and allocation tracking:
+Validates insertion, deletion, pivot changes, hull construction, benchmark statistics, deterministic workload generation, and benchmark correctness:
 ```bash
 build/make/hull --self-test
 ```
@@ -32,7 +32,8 @@ ctest --test-dir build/cmake --output-on-failure
 ```
 
 ### Benchmark
-Runs reproducible timing benchmarks across 5 scenarios (baseline sort, normal insert, normal delete, pivot-changing insert, pivot deletion) with 31 samples each:
+Benchmarks 100,000 deterministic unique random points across batch Graham scan, RBT build plus hull, hull query, normal insert/delete, and pivot-changing insert/delete. After three warm-ups, each workload records 101 runs and reports total time, mean with sample standard deviation, min, median, max, p75, p95, p99, and separately measured allocations. Any hull mismatch or invalid red-black tree terminates the run.
+
 ```bash
 build/make/hull --benchmark
 ```
