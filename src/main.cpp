@@ -23,10 +23,13 @@
 
 std::size_t g_alloc_count = 0;
 std::size_t g_alloc_bytes = 0;
+bool g_track_allocations = false;
 
 void *operator new(std::size_t size) {
-  g_alloc_count++;
-  g_alloc_bytes += size;
+  if (g_track_allocations) {
+    g_alloc_count++;
+    g_alloc_bytes += size;
+  }
   void *ptr = std::malloc(size);
   if (!ptr)
     throw std::bad_alloc();
@@ -34,8 +37,10 @@ void *operator new(std::size_t size) {
 }
 
 void *operator new[](std::size_t size) {
-  g_alloc_count++;
-  g_alloc_bytes += size;
+  if (g_track_allocations) {
+    g_alloc_count++;
+    g_alloc_bytes += size;
+  }
   void *ptr = std::malloc(size);
   if (!ptr)
     throw std::bad_alloc();
@@ -79,7 +84,6 @@ struct BenchmarkConfig {
 
 struct Dataset {
   std::vector<Point> points;
-  std::vector<std::pair<long long, long long>> coordinates;
   std::vector<Point> normal_inserts;
   std::vector<Point> normal_deletes;
   Point pivot;
@@ -99,7 +103,6 @@ Dataset generate_dataset(const BenchmarkConfig &config) {
       dataset.points.push_back(point);
   }
 
-  dataset.coordinates.assign(seen.begin(), seen.end());
   dataset.pivot = *std::min_element(
       dataset.points.begin(), dataset.points.end(), [](Point a, Point b) {
         return std::tie(a.y, a.x) < std::tie(b.y, b.x);
@@ -211,6 +214,16 @@ const char *optimization_mode() {
 #endif
 }
 
+const char *compiler() {
+#if defined(__clang__)
+  return "Clang " __clang_version__;
+#elif defined(__GNUC__)
+  return "GCC " __VERSION__;
+#else
+  return "unknown";
+#endif
+}
+
 void print_reports(const std::vector<BenchmarkReport> &reports) {
   std::cout << std::left << std::setw(24) << "benchmark" << std::right
             << std::setw(7) << "runs" << std::setw(13) << "total"
@@ -218,7 +231,7 @@ void print_reports(const std::vector<BenchmarkReport> &reports) {
             << std::setw(13) << "median" << std::setw(13) << "max"
             << std::setw(13) << "p75" << std::setw(13) << "p95"
             << std::setw(13) << "p99" << '\n'
-            << std::string(145, '-') << '\n';
+            << std::string(146, '-') << '\n';
   for (const auto &report : reports) {
     const auto summary = summarize(report.samples);
     const auto unit = duration_unit(summary.mean);
@@ -354,7 +367,9 @@ BenchmarkReport measure(const char *name, const BenchmarkConfig &config,
 
   auto state = setup();
   const auto before = capture_alloc();
+  g_track_allocations = true;
   consume(operation(state));
+  g_track_allocations = false;
   const auto allocation = delta_alloc(before, capture_alloc());
   report.allocations_per_operation =
       static_cast<double>(allocation.count) / operations_per_run;
@@ -470,6 +485,11 @@ void verify_workloads(const Dataset &dataset) {
                          dataset.normal_inserts.end());
   expect(tree->size() == original_size + dataset.normal_inserts.size(),
          "normal insert size");
+  const auto ordered_after_insert = tree->ordered_points();
+  for (const Point point : dataset.normal_inserts)
+    expect(std::find(ordered_after_insert.begin(), ordered_after_insert.end(),
+                     point) != ordered_after_insert.end(),
+           "normal insert present");
   expect(tree->valid(), "normal insert invariants");
   expect(tree->hull(false) == baseline_hull(inserted_points, false),
          "normal insert hull");
@@ -483,6 +503,11 @@ void verify_workloads(const Dataset &dataset) {
                     remaining.end());
   expect(tree->size() == original_size - dataset.normal_deletes.size(),
          "normal delete size");
+  const auto ordered_after_delete = tree->ordered_points();
+  for (const Point point : dataset.normal_deletes)
+    expect(std::find(ordered_after_delete.begin(), ordered_after_delete.end(),
+                     point) == ordered_after_delete.end(),
+           "normal delete absent");
   expect(tree->valid(), "normal delete invariants");
   expect(tree->hull(false) == baseline_hull(remaining, false),
          "normal delete hull");
@@ -491,6 +516,11 @@ void verify_workloads(const Dataset &dataset) {
   expect(tree->insert(dataset.pivot_insert), "pivot insert accepted");
   auto with_pivot_insert = dataset.points;
   with_pivot_insert.push_back(dataset.pivot_insert);
+  const auto ordered_after_pivot_insert = tree->ordered_points();
+  expect(std::find(ordered_after_pivot_insert.begin(),
+                   ordered_after_pivot_insert.end(), dataset.pivot_insert) !=
+             ordered_after_pivot_insert.end(),
+         "pivot insert present");
   expect(tree->valid(), "pivot insert invariants");
   expect(tree->hull(false) == baseline_hull(with_pivot_insert, false),
          "pivot insert hull");
@@ -501,6 +531,11 @@ void verify_workloads(const Dataset &dataset) {
   without_pivot.erase(
       std::remove(without_pivot.begin(), without_pivot.end(), dataset.pivot),
       without_pivot.end());
+  const auto ordered_after_pivot_delete = tree->ordered_points();
+  expect(std::find(ordered_after_pivot_delete.begin(),
+                   ordered_after_pivot_delete.end(), dataset.pivot) ==
+             ordered_after_pivot_delete.end(),
+         "pivot delete absent");
   expect(tree->valid(), "pivot delete invariants");
   expect(tree->hull(false) == baseline_hull(without_pivot, false),
          "pivot delete hull");
@@ -520,14 +555,32 @@ void test_statistics() {
   expect(summary.p99 == 4.0, "statistics p99");
 }
 
+void test_allocation_tracking() {
+  g_track_allocations = false;
+  const auto before = capture_alloc();
+  void *untracked = ::operator new(17);
+  ::operator delete(untracked);
+  const auto untracked_allocation = delta_alloc(before, capture_alloc());
+  expect(untracked_allocation.count == 0 && untracked_allocation.bytes == 0,
+         "disabled allocation tracking");
+
+  g_track_allocations = true;
+  void *tracked = ::operator new(17);
+  ::operator delete(tracked);
+  g_track_allocations = false;
+  const auto allocation = delta_alloc(before, capture_alloc());
+  expect(allocation.count == 1 && allocation.bytes == 17,
+         "enabled allocation tracking");
+}
+
 void test_benchmark_smoke() {
   const BenchmarkConfig config{32, 0xC0FFEE, 0, 2, 4};
   const auto dataset = generate_dataset(config);
   expect(dataset.points.size() == 32, "benchmark dataset size");
-  expect(std::set<std::pair<long long, long long>>(
-             dataset.coordinates.begin(), dataset.coordinates.end())
-             .size() == 32,
-         "benchmark dataset uniqueness");
+  std::set<std::pair<long long, long long>> coordinates;
+  for (const Point point : dataset.points)
+    coordinates.emplace(point.x, point.y);
+  expect(coordinates.size() == 32, "benchmark dataset uniqueness");
   verify_workloads(dataset);
   const auto reports = run_benchmarks(dataset, config);
   expect(reports.size() == 7, "benchmark workload count");
@@ -551,6 +604,7 @@ int main(int argc, char *argv[]) {
 
   if (run_self_test) {
     test_statistics();
+    test_allocation_tracking();
     test_benchmark_smoke();
     DynamicHull tree;
     expect(tree.insert({0, 0}), "first insert accepted");
@@ -605,7 +659,7 @@ int main(int argc, char *argv[]) {
               << "Seed: " << config.seed << '\n'
               << "Warm-ups: " << config.warmups << '\n'
               << "Measured runs: " << config.runs << '\n'
-              << "Compiler: " << __VERSION__ << '\n'
+              << "Compiler: " << compiler() << '\n'
               << "Optimization: " << optimization_mode() << '\n'
               << "Platform: " << operating_system() << ' ' << architecture()
               << "\n\n";
