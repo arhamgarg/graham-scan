@@ -21,6 +21,7 @@
 
 #include "../include/avl.hpp"
 #include "../include/rbt.hpp"
+#include "../include/arr.hpp"
 
 std::size_t g_alloc_count = 0;
 std::size_t g_alloc_bytes = 0;
@@ -402,7 +403,7 @@ struct MutationState {
 std::vector<BenchmarkReport>
 run_benchmarks(const Dataset &dataset, const BenchmarkConfig &config) {
   std::vector<BenchmarkReport> reports;
-  reports.reserve(13);
+  reports.reserve(19);
 
   reports.push_back(measure(
       "Batch Graham scan", config, 1,
@@ -528,6 +529,64 @@ run_benchmarks(const Dataset &dataset, const BenchmarkConfig &config) {
         return state.tree->size();
       }));
 
+  // Array Benchmarks
+  reports.push_back(measure(
+      "Array build + hull", config, 1,
+      [&] { return BuildState<arr::DynamicHull>{&dataset.points, nullptr, {}}; },
+      [](BuildState<arr::DynamicHull> &state) {
+        state.tree = make_tree<arr::DynamicHull>(*state.points);
+        state.hull = state.tree->hull(false);
+        return state.hull.size();
+      }));
+
+  reports.push_back(measure(
+      "Array hull query", config, 1,
+      [&] { return HullState<arr::DynamicHull>{make_tree<arr::DynamicHull>(dataset.points), {}}; },
+      [](HullState<arr::DynamicHull> &state) {
+        state.hull = state.tree->hull(false);
+        return state.hull.size();
+      }));
+
+  reports.push_back(measure(
+      "Array normal insert", config, config.fast_batch_size,
+      [&] {
+        return MutationState<arr::DynamicHull>{make_tree<arr::DynamicHull>(dataset.points),
+                                              &dataset.normal_inserts};
+      },
+      [](MutationState<arr::DynamicHull> &state) {
+        for (const Point point : *state.points)
+          state.tree->insert(point);
+        return state.tree->size();
+      }));
+
+  reports.push_back(measure(
+      "Array normal delete", config, config.fast_batch_size,
+      [&] {
+        return MutationState<arr::DynamicHull>{make_tree<arr::DynamicHull>(dataset.points),
+                                              &dataset.normal_deletes};
+      },
+      [](MutationState<arr::DynamicHull> &state) {
+        for (const Point point : *state.points)
+          state.tree->erase(point);
+        return state.tree->size();
+      }));
+
+  reports.push_back(measure(
+      "Array pivot insert", config, 1,
+      [&] { return MutationState<arr::DynamicHull>{make_tree<arr::DynamicHull>(dataset.points), nullptr}; },
+      [&](MutationState<arr::DynamicHull> &state) {
+        state.tree->insert(dataset.pivot_insert);
+        return state.tree->size();
+      }));
+
+  reports.push_back(measure(
+      "Array pivot delete", config, 1,
+      [&] { return MutationState<arr::DynamicHull>{make_tree<arr::DynamicHull>(dataset.points), nullptr}; },
+      [&](MutationState<arr::DynamicHull> &state) {
+        state.tree->erase(dataset.pivot);
+        return state.tree->size();
+      }));
+
   return reports;
 }
 
@@ -610,6 +669,7 @@ void verify_workloads_typed(const Dataset &dataset, const char* tree_name) {
 void verify_workloads(const Dataset &dataset) {
   verify_workloads_typed<rbt::DynamicHull>(dataset, "RBT");
   verify_workloads_typed<avl::DynamicHull>(dataset, "AVL");
+  verify_workloads_typed<arr::DynamicHull>(dataset, "Array");
 }
 
 void test_statistics() {
@@ -654,7 +714,7 @@ void test_benchmark_smoke() {
   expect(coordinates.size() == 32, "benchmark dataset uniqueness");
   verify_workloads(dataset);
   const auto reports = run_benchmarks(dataset, config);
-  expect(reports.size() == 13, "benchmark workload count");
+  expect(reports.size() == 19, "benchmark workload count");
   for (const auto &report : reports)
     expect(report.samples.size() == 2, "benchmark sample count");
 }
@@ -751,6 +811,50 @@ int main(int argc, char *argv[]) {
       expect(tree.valid(), "pivot erase invariants");
 
       avl::DynamicHull hull_tree;
+      const std::vector<Point> test_points{{0, 0}, {1, 0}, {2, 0},
+                                           {2, 2}, {0, 2}, {1, 1}};
+      for (const auto &p : test_points) {
+        hull_tree.insert(p);
+      }
+
+      const auto tree_hull_excl = hull_tree.hull(false);
+      const auto base_hull_excl = baseline_hull(test_points, false);
+      expect(tree_hull_excl == base_hull_excl, "exclusive hull");
+
+      const auto tree_hull_incl = hull_tree.hull(true);
+      const auto base_hull_incl = baseline_hull(test_points, true);
+      expect(tree_hull_incl == base_hull_incl, "inclusive hull");
+    }
+
+    // Array self-test
+    {
+      arr::DynamicHull tree;
+      expect(tree.insert({0, 0}), "first insert accepted");
+      expect(tree.insert({2, 0}), "second insert accepted");
+      expect(tree.insert({1, 1}), "third insert accepted");
+      expect(!tree.insert({1, 1}), "duplicate insert rejected");
+      expect(tree.size() == 3, "inserted tree size");
+      expect(tree.valid(), "inserted tree invariants");
+      const auto points = tree.ordered_points();
+      const std::vector<Point> expected{{0, 0}, {2, 0}, {1, 1}};
+      expect(points == expected, "inserted tree order");
+
+      expect(tree.erase({2, 0}), "erase accepted");
+      expect(!tree.erase({2, 0}), "missing erase rejected");
+      expect(tree.valid(), "erased tree invariants");
+      expect(tree.insert({-1, -1}), "pivot insert accepted");
+      expect(tree.valid(), "pivot insert invariants");
+      const auto size_before_pivot_erase = tree.size();
+      expect(tree.erase({-1, -1}), "pivot erase accepted");
+      expect(tree.size() == size_before_pivot_erase - 1, "pivot erase size");
+      const auto points_after_pivot_erase = tree.ordered_points();
+      expect(std::find(points_after_pivot_erase.begin(),
+                       points_after_pivot_erase.end(),
+                       Point{-1, -1}) == points_after_pivot_erase.end(),
+             "erased pivot absent");
+      expect(tree.valid(), "pivot erase invariants");
+
+      arr::DynamicHull hull_tree;
       const std::vector<Point> test_points{{0, 0}, {1, 0}, {2, 0},
                                            {2, 2}, {0, 2}, {1, 1}};
       for (const auto &p : test_points) {
