@@ -4,16 +4,9 @@
 #include <cstdlib>
 #include <functional>
 
-int cross(Point a, Point b, Point c) {
-  const __int128 value =
-      (static_cast<__int128>(b.x) - a.x) * (static_cast<__int128>(c.y) - a.y) -
-      (static_cast<__int128>(b.y) - a.y) * (static_cast<__int128>(c.x) - a.x);
-  return (value > 0) - (value < 0);
-}
-
 namespace {
 
-bool compare_nodes(const Node *a, const Node *b) {
+bool compare_nodes(const avl::Node *a, const avl::Node *b) {
   const bool a_upper = a->dy > 0 || (a->dy == 0 && a->dx >= 0);
   const bool b_upper = b->dy > 0 || (b->dy == 0 && b->dx >= 0);
 
@@ -28,23 +21,23 @@ bool compare_nodes(const Node *a, const Node *b) {
   return a->distance2 < b->distance2;
 }
 
-int height(Node *n) {
+int height(avl::Node *n) {
   return n ? n->height : 0;
 }
 
-int get_balance(Node *n) {
+int get_balance(avl::Node *n) {
   return n ? height(n->left) - height(n->right) : 0;
 }
 
-void update_height(Node *n) {
+void update_height(avl::Node *n) {
   if (n) {
     n->height = 1 + std::max(height(n->left), height(n->right));
   }
 }
 
-Node *rotate_right(Node *y) {
-  Node *x = y->left;
-  Node *T2 = x->right;
+avl::Node *rotate_right(avl::Node *y) {
+  avl::Node *x = y->left;
+  avl::Node *T2 = x->right;
 
   x->right = y;
   y->left = T2;
@@ -55,9 +48,9 @@ Node *rotate_right(Node *y) {
   return x;
 }
 
-Node *rotate_left(Node *x) {
-  Node *y = x->right;
-  Node *T2 = y->left;
+avl::Node *rotate_left(avl::Node *x) {
+  avl::Node *y = x->right;
+  avl::Node *T2 = y->left;
 
   y->left = x;
   x->right = T2;
@@ -68,7 +61,7 @@ Node *rotate_left(Node *x) {
   return y;
 }
 
-Node *balance_node(Node *node) {
+avl::Node *balance_node(avl::Node *node) {
   update_height(node);
   int balance = get_balance(node);
 
@@ -95,7 +88,7 @@ Node *balance_node(Node *node) {
   return node;
 }
 
-Node *insert_helper(Node *node, Node *new_node, bool &success) {
+avl::Node *insert_helper(avl::Node *node, avl::Node *new_node, bool &success) {
   if (!node) {
     success = true;
     return new_node;
@@ -117,15 +110,15 @@ Node *insert_helper(Node *node, Node *new_node, bool &success) {
   return balance_node(node);
 }
 
-Node *find_min(Node *node) {
-  Node *curr = node;
+avl::Node *find_min(avl::Node *node) {
+  avl::Node *curr = node;
   while (curr && curr->left) {
     curr = curr->left;
   }
   return curr;
 }
 
-Node *erase_helper(Node *node, Point point, long long dx, long long dy, __int128 distance2, bool &success) {
+avl::Node *erase_helper(avl::Node *node, Point point, long long dx, long long dy, __int128 distance2, bool &success) {
   if (!node) {
     success = false;
     return nullptr;
@@ -134,11 +127,11 @@ Node *erase_helper(Node *node, Point point, long long dx, long long dy, __int128
   if (point == node->point) {
     success = true;
     if (!node->left || !node->right) {
-      Node *temp = node->left ? node->left : node->right;
+      avl::Node *temp = node->left ? node->left : node->right;
       delete node;
       return temp;
     } else {
-      Node *temp = find_min(node->right);
+      avl::Node *temp = find_min(node->right);
       node->point = temp->point;
       node->dx = temp->dx;
       node->dy = temp->dy;
@@ -175,7 +168,7 @@ Node *erase_helper(Node *node, Point point, long long dx, long long dy, __int128
   return balance_node(node);
 }
 
-bool validate_avl(const Node *node, int &computed_height) {
+bool validate_avl(const avl::Node *node, int &computed_height) {
   if (!node) {
     computed_height = 0;
     return true;
@@ -191,7 +184,7 @@ bool validate_avl(const Node *node, int &computed_height) {
   return true;
 }
 
-bool validate_sorted_avl(const Node *node, const Node *&last) {
+bool validate_sorted_avl(const avl::Node *node, const avl::Node *&last) {
   if (!node)
     return true;
 
@@ -207,6 +200,8 @@ bool validate_sorted_avl(const Node *node, const Node *&last) {
 }
 
 } // namespace
+
+namespace avl {
 
 void DynamicHull::clear() {
   std::function<void(Node *)> delete_tree = [&](Node *node) {
@@ -322,7 +317,7 @@ std::vector<Point> DynamicHull::hull(bool include_collinear) const {
   std::vector<Point> result;
   for (const auto &p : points) {
     while (result.size() > 1) {
-      int turn = cross(result[result.size() - 2], result[result.size() - 1], p);
+      int turn = ::cross(result[result.size() - 2], result[result.size() - 1], p);
       if (include_collinear) {
         if (turn < 0)
           result.pop_back();
@@ -371,3 +366,5 @@ bool DynamicHull::erase(Point point) {
 }
 
 std::size_t DynamicHull::size() const { return size_; }
+
+} // namespace avl

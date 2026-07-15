@@ -5,7 +5,7 @@ LDFLAGS ?=
 ROOT := $(CURDIR)
 BUILD_DIR := $(ROOT)/build/make
 TARGET := $(BUILD_DIR)/hull
-SRC := $(ROOT)/src/main.cpp $(ROOT)/src/avl.cpp
+SRC := $(ROOT)/src/main.cpp $(ROOT)/src/avl.cpp $(ROOT)/src/rbt.cpp
 INCLUDE := -I$(ROOT)/include
 
 all: $(TARGET)

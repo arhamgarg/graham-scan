@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(hull
     src/main.cpp
     src/avl.cpp
+    src/rbt.cpp
 )
 
 target_include_directories(hull PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)

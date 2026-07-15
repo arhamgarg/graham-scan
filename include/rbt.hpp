@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <vector>
 
-// Share the same global Point struct
+// Share the same global Point struct (defined in avl.hpp or here)
 #ifndef POINT_DEFINED
 #define POINT_DEFINED
 struct Point {
@@ -16,21 +16,24 @@ struct Point {
 
 int cross(Point a, Point b, Point c);
 
-namespace avl {
+enum class Color { RED, BLACK };
+
+namespace rbt {
 
 struct Node {
   Point point;
   long long dx, dy;
   __int128 distance2;
-  int height;
+  Color color;
   Node *left;
   Node *right;
+  Node *parent;
 
   Node(Point p, long long dx_val, long long dy_val)
       : point(p), dx(dx_val), dy(dy_val),
         distance2(static_cast<__int128>(dx_val) * dx_val +
                   static_cast<__int128>(dy_val) * dy_val),
-        height(1), left(nullptr), right(nullptr) {}
+        color(Color::RED), left(nullptr), right(nullptr), parent(nullptr) {}
 };
 
 class DynamicHull {
@@ -49,6 +52,7 @@ public:
 
 private:
   Node *root_;
+  Node *nil_;
   Point pivot_;
   bool has_pivot_;
   std::size_t size_;
@@ -57,4 +61,4 @@ private:
   void rebuild(std::vector<Point> points);
 };
 
-} // namespace avl
+} // namespace rbt
