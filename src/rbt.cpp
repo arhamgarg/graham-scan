@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <functional>
+#include <algorithm>
 
 int cross(Point a, Point b, Point c) {
   const __int128 value =
@@ -13,7 +14,7 @@ int cross(Point a, Point b, Point c) {
 
 namespace {
 
-bool compare_nodes(const Node *a, const Node *b) {
+bool compare_nodes(const rbt::Node *a, const rbt::Node *b) {
   const bool a_upper = a->dy > 0 || (a->dy == 0 && a->dx >= 0);
   const bool b_upper = b->dy > 0 || (b->dy == 0 && b->dx >= 0);
 
@@ -28,8 +29,8 @@ bool compare_nodes(const Node *a, const Node *b) {
   return a->distance2 < b->distance2;
 }
 
-void rotate_left(Node *&root, Node *nil, Node *x) {
-  Node *y = x->right;
+void rotate_left(rbt::Node *&root, rbt::Node *nil, rbt::Node *x) {
+  rbt::Node *y = x->right;
   x->right = y->left;
 
   if (y->left != nil) {
@@ -50,8 +51,8 @@ void rotate_left(Node *&root, Node *nil, Node *x) {
   x->parent = y;
 }
 
-void rotate_right(Node *&root, Node *nil, Node *x) {
-  Node *y = x->left;
+void rotate_right(rbt::Node *&root, rbt::Node *nil, rbt::Node *x) {
+  rbt::Node *y = x->left;
   x->left = y->right;
 
   if (y->right != nil) {
@@ -72,10 +73,10 @@ void rotate_right(Node *&root, Node *nil, Node *x) {
   x->parent = y;
 }
 
-void fix_insert(Node *&root, Node *nil, Node *k) {
+void fix_insert(rbt::Node *&root, rbt::Node *nil, rbt::Node *k) {
   while (k->parent->color == Color::RED) {
     if (k->parent == k->parent->parent->left) {
-      Node *u = k->parent->parent->right;
+      rbt::Node *u = k->parent->parent->right;
 
       if (u->color == Color::RED) {
         k->parent->color = Color::BLACK;
@@ -93,7 +94,7 @@ void fix_insert(Node *&root, Node *nil, Node *k) {
         rotate_right(root, nil, k->parent->parent);
       }
     } else {
-      Node *u = k->parent->parent->left;
+      rbt::Node *u = k->parent->parent->left;
 
       if (u->color == Color::RED) {
         k->parent->color = Color::BLACK;
@@ -115,7 +116,7 @@ void fix_insert(Node *&root, Node *nil, Node *k) {
   root->color = Color::BLACK;
 }
 
-bool validate_rbt(Node *node, Node *nil, int &black_height,
+bool validate_rbt(rbt::Node *node, rbt::Node *nil, int &black_height,
                   int current_black_count) {
   if (node == nil) {
     if (black_height == -1) {
@@ -137,7 +138,7 @@ bool validate_rbt(Node *node, Node *nil, int &black_height,
          validate_rbt(node->right, nil, black_height, next_count);
 }
 
-bool validate_sorted(Node *node, Node *nil, Node *&last) {
+bool validate_sorted(rbt::Node *node, rbt::Node *nil, rbt::Node *&last) {
   if (node == nil)
     return true;
 
@@ -152,14 +153,14 @@ bool validate_sorted(Node *node, Node *nil, Node *&last) {
   return validate_sorted(node->right, nil, last);
 }
 
-Node *find_minimum(Node *node, Node *nil) {
+rbt::Node *find_minimum(rbt::Node *node, rbt::Node *nil) {
   while (node->left != nil) {
     node = node->left;
   }
   return node;
 }
 
-void transplant(Node *&root, Node *nil, Node *u, Node *v) {
+void transplant(rbt::Node *&root, rbt::Node *nil, rbt::Node *u, rbt::Node *v) {
   if (u->parent == nil) {
     root = v;
   } else if (u == u->parent->left) {
@@ -170,10 +171,10 @@ void transplant(Node *&root, Node *nil, Node *u, Node *v) {
   v->parent = u->parent;
 }
 
-void fix_delete(Node *&root, Node *nil, Node *x) {
+void fix_delete(rbt::Node *&root, rbt::Node *nil, rbt::Node *x) {
   while (x != root && x->color == Color::BLACK) {
     if (x == x->parent->left) {
-      Node *s = x->parent->right;
+      rbt::Node *s = x->parent->right;
 
       if (s->color == Color::RED) {
         s->color = Color::BLACK;
@@ -200,7 +201,7 @@ void fix_delete(Node *&root, Node *nil, Node *x) {
         x = root;
       }
     } else {
-      Node *s = x->parent->left;
+      rbt::Node *s = x->parent->left;
 
       if (s->color == Color::RED) {
         s->color = Color::BLACK;
@@ -231,7 +232,9 @@ void fix_delete(Node *&root, Node *nil, Node *x) {
   x->color = Color::BLACK;
 }
 
-}
+} // namespace
+
+namespace rbt {
 
 void DynamicHull::clear() {
   std::function<void(Node *)> delete_tree = [&](Node *node) {
@@ -387,7 +390,7 @@ std::vector<Point> DynamicHull::hull(bool include_collinear) const {
   std::vector<Point> result;
   for (const auto &p : points) {
     while (result.size() > 1) {
-      int turn = cross(result[result.size() - 2], result[result.size() - 1], p);
+      int turn = ::cross(result[result.size() - 2], result[result.size() - 1], p);
       if (include_collinear) {
         if (turn < 0)
           result.pop_back();
@@ -504,3 +507,5 @@ bool DynamicHull::erase(Point point) {
 }
 
 std::size_t DynamicHull::size() const { return size_; }
+
+} // namespace rbt

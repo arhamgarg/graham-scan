@@ -1,26 +1,23 @@
-CXX ?= c++
-CPPFLAGS := -Iinclude
-CXXFLAGS ?= -O3
-CXXFLAGS += -std=c++17 -Wall -Wextra -Wpedantic
+CXX ?= g++
+CXXFLAGS ?= -O3 -std=c++17 -Wall -Wextra
+LDFLAGS ?=
 
-TARGET := build/make/hull
-OBJECTS := build/make/main.o build/make/rbt.o
-
-.PHONY: all test clean
+ROOT := $(CURDIR)
+BUILD_DIR := $(ROOT)/build/make
+TARGET := $(BUILD_DIR)/hull
+SRC := $(ROOT)/src/main.cpp $(ROOT)/src/avl.cpp $(ROOT)/src/rbt.cpp
+INCLUDE := -I$(ROOT)/include
 
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS)
-	$(CXX) $(CXXFLAGS) $^ -o $@
+$(TARGET): $(SRC)
+	@mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDE) $(SRC) -o $@ $(LDFLAGS)
 
-build/make/%.o: src/%.cpp
-	@mkdir -p $(@D)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
-
-test: $(TARGET)
-	./$(TARGET) --self-test
+run: $(TARGET)
+	$(TARGET) --self-test
 
 clean:
-	rm -rf build/make
+	rm -rf $(BUILD_DIR)
 
--include $(OBJECTS:.o=.d)
+.PHONY: all run clean

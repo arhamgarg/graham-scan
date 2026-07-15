@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "../include/avl.hpp"
 #include "../include/rbt.hpp"
 
 std::size_t g_alloc_count = 0;
@@ -240,12 +241,12 @@ void print_reports(const std::vector<BenchmarkReport> &reports) {
     std::cout << std::left << std::setw(24) << report.name << std::right
               << std::setw(7) << report.samples.size() << std::setw(13)
               << duration(summary.total, unit) << std::setw(24) << mean_sd
-              << std::setw(13) << duration(summary.min, unit)
-              << std::setw(13) << duration(summary.median, unit)
-              << std::setw(13) << duration(summary.max, unit)
-              << std::setw(13) << duration(summary.p75, unit)
-              << std::setw(13) << duration(summary.p95, unit)
-              << std::setw(13) << duration(summary.p99, unit) << '\n';
+              << std::setw(13) << duration(summary.min, unit) << std::setw(13)
+              << duration(summary.median, unit) << std::setw(13)
+              << duration(summary.max, unit) << std::setw(13)
+              << duration(summary.p75, unit) << std::setw(13)
+              << duration(summary.p95, unit) << std::setw(13)
+              << duration(summary.p99, unit) << '\n';
   }
 
   std::cout << "\n" << std::left << std::setw(24) << "benchmark"
@@ -335,8 +336,9 @@ volatile std::size_t g_benchmark_sink = 0;
 
 void consume(std::size_t value) { g_benchmark_sink ^= value; }
 
-std::unique_ptr<DynamicHull> make_tree(const std::vector<Point> &points) {
-  auto tree = std::make_unique<DynamicHull>();
+template <typename HullType>
+std::unique_ptr<HullType> make_tree(const std::vector<Point> &points) {
+  auto tree = std::make_unique<HullType>();
   for (const Point point : points)
     tree->insert(point);
   return tree;
@@ -378,48 +380,52 @@ BenchmarkReport measure(const char *name, const BenchmarkConfig &config,
   return report;
 }
 
+template <typename HullType>
 struct HullState {
-  std::unique_ptr<DynamicHull> tree;
+  std::unique_ptr<HullType> tree;
   std::vector<Point> hull;
 };
 
+template <typename HullType>
 struct BuildState {
   const std::vector<Point> *points;
-  std::unique_ptr<DynamicHull> tree;
+  std::unique_ptr<HullType> tree;
   std::vector<Point> hull;
 };
 
+template <typename HullType>
 struct MutationState {
-  std::unique_ptr<DynamicHull> tree;
+  std::unique_ptr<HullType> tree;
   const std::vector<Point> *points;
 };
 
 std::vector<BenchmarkReport>
 run_benchmarks(const Dataset &dataset, const BenchmarkConfig &config) {
   std::vector<BenchmarkReport> reports;
-  reports.reserve(7);
+  reports.reserve(13);
 
   reports.push_back(measure(
       "Batch Graham scan", config, 1,
-      [&] { return BuildState{&dataset.points, nullptr, {}}; },
-      [](BuildState &state) {
+      [&] { return BuildState<avl::DynamicHull>{&dataset.points, nullptr, {}}; },
+      [](BuildState<avl::DynamicHull> &state) {
         state.hull = baseline_hull(*state.points, false);
         return state.hull.size();
       }));
 
+  // RBT Benchmarks
   reports.push_back(measure(
       "RBT build + hull", config, 1,
-      [&] { return BuildState{&dataset.points, nullptr, {}}; },
-      [](BuildState &state) {
-        state.tree = make_tree(*state.points);
+      [&] { return BuildState<rbt::DynamicHull>{&dataset.points, nullptr, {}}; },
+      [](BuildState<rbt::DynamicHull> &state) {
+        state.tree = make_tree<rbt::DynamicHull>(*state.points);
         state.hull = state.tree->hull(false);
         return state.hull.size();
       }));
 
   reports.push_back(measure(
       "RBT hull query", config, 1,
-      [&] { return HullState{make_tree(dataset.points), {}}; },
-      [](HullState &state) {
+      [&] { return HullState<rbt::DynamicHull>{make_tree<rbt::DynamicHull>(dataset.points), {}}; },
+      [](HullState<rbt::DynamicHull> &state) {
         state.hull = state.tree->hull(false);
         return state.hull.size();
       }));
@@ -427,10 +433,10 @@ run_benchmarks(const Dataset &dataset, const BenchmarkConfig &config) {
   reports.push_back(measure(
       "RBT normal insert", config, config.fast_batch_size,
       [&] {
-        return MutationState{make_tree(dataset.points),
-                             &dataset.normal_inserts};
+        return MutationState<rbt::DynamicHull>{make_tree<rbt::DynamicHull>(dataset.points),
+                                              &dataset.normal_inserts};
       },
-      [](MutationState &state) {
+      [](MutationState<rbt::DynamicHull> &state) {
         for (const Point point : *state.points)
           state.tree->insert(point);
         return state.tree->size();
@@ -439,10 +445,10 @@ run_benchmarks(const Dataset &dataset, const BenchmarkConfig &config) {
   reports.push_back(measure(
       "RBT normal delete", config, config.fast_batch_size,
       [&] {
-        return MutationState{make_tree(dataset.points),
-                             &dataset.normal_deletes};
+        return MutationState<rbt::DynamicHull>{make_tree<rbt::DynamicHull>(dataset.points),
+                                              &dataset.normal_deletes};
       },
-      [](MutationState &state) {
+      [](MutationState<rbt::DynamicHull> &state) {
         for (const Point point : *state.points)
           state.tree->erase(point);
         return state.tree->size();
@@ -450,19 +456,78 @@ run_benchmarks(const Dataset &dataset, const BenchmarkConfig &config) {
 
   reports.push_back(measure(
       "RBT pivot insert", config, 1,
-      [&] { return MutationState{make_tree(dataset.points), nullptr}; },
-      [&](MutationState &state) {
+      [&] { return MutationState<rbt::DynamicHull>{make_tree<rbt::DynamicHull>(dataset.points), nullptr}; },
+      [&](MutationState<rbt::DynamicHull> &state) {
         state.tree->insert(dataset.pivot_insert);
         return state.tree->size();
       }));
 
   reports.push_back(measure(
       "RBT pivot delete", config, 1,
-      [&] { return MutationState{make_tree(dataset.points), nullptr}; },
-      [&](MutationState &state) {
+      [&] { return MutationState<rbt::DynamicHull>{make_tree<rbt::DynamicHull>(dataset.points), nullptr}; },
+      [&](MutationState<rbt::DynamicHull> &state) {
         state.tree->erase(dataset.pivot);
         return state.tree->size();
       }));
+
+  // AVL Benchmarks
+  reports.push_back(measure(
+      "AVL build + hull", config, 1,
+      [&] { return BuildState<avl::DynamicHull>{&dataset.points, nullptr, {}}; },
+      [](BuildState<avl::DynamicHull> &state) {
+        state.tree = make_tree<avl::DynamicHull>(*state.points);
+        state.hull = state.tree->hull(false);
+        return state.hull.size();
+      }));
+
+  reports.push_back(measure(
+      "AVL hull query", config, 1,
+      [&] { return HullState<avl::DynamicHull>{make_tree<avl::DynamicHull>(dataset.points), {}}; },
+      [](HullState<avl::DynamicHull> &state) {
+        state.hull = state.tree->hull(false);
+        return state.hull.size();
+      }));
+
+  reports.push_back(measure(
+      "AVL normal insert", config, config.fast_batch_size,
+      [&] {
+        return MutationState<avl::DynamicHull>{make_tree<avl::DynamicHull>(dataset.points),
+                                              &dataset.normal_inserts};
+      },
+      [](MutationState<avl::DynamicHull> &state) {
+        for (const Point point : *state.points)
+          state.tree->insert(point);
+        return state.tree->size();
+      }));
+
+  reports.push_back(measure(
+      "AVL normal delete", config, config.fast_batch_size,
+      [&] {
+        return MutationState<avl::DynamicHull>{make_tree<avl::DynamicHull>(dataset.points),
+                                              &dataset.normal_deletes};
+      },
+      [](MutationState<avl::DynamicHull> &state) {
+        for (const Point point : *state.points)
+          state.tree->erase(point);
+        return state.tree->size();
+      }));
+
+  reports.push_back(measure(
+      "AVL pivot insert", config, 1,
+      [&] { return MutationState<avl::DynamicHull>{make_tree<avl::DynamicHull>(dataset.points), nullptr}; },
+      [&](MutationState<avl::DynamicHull> &state) {
+        state.tree->insert(dataset.pivot_insert);
+        return state.tree->size();
+      }));
+
+  reports.push_back(measure(
+      "AVL pivot delete", config, 1,
+      [&] { return MutationState<avl::DynamicHull>{make_tree<avl::DynamicHull>(dataset.points), nullptr}; },
+      [&](MutationState<avl::DynamicHull> &state) {
+        state.tree->erase(dataset.pivot);
+        return state.tree->size();
+      }));
+
   return reports;
 }
 
@@ -471,11 +536,12 @@ void expect(bool condition, const char *message) {
     throw std::runtime_error(message);
 }
 
-void verify_workloads(const Dataset &dataset) {
+template <typename HullType>
+void verify_workloads_typed(const Dataset &dataset, const char* tree_name) {
   const auto expected = baseline_hull(dataset.points, false);
-  auto tree = make_tree(dataset.points);
-  expect(tree->valid(), "RBT build invariants");
-  expect(tree->hull(false) == expected, "RBT build hull");
+  auto tree = make_tree<HullType>(dataset.points);
+  expect(tree->valid(), (std::string(tree_name) + " build invariants").c_str());
+  expect(tree->hull(false) == expected, (std::string(tree_name) + " build hull").c_str());
 
   const auto original_size = tree->size();
   for (const Point point : dataset.normal_inserts)
@@ -494,7 +560,7 @@ void verify_workloads(const Dataset &dataset) {
   expect(tree->hull(false) == baseline_hull(inserted_points, false),
          "normal insert hull");
 
-  tree = make_tree(dataset.points);
+  tree = make_tree<HullType>(dataset.points);
   for (const Point point : dataset.normal_deletes)
     expect(tree->erase(point), "normal delete accepted");
   auto remaining = dataset.points;
@@ -512,7 +578,7 @@ void verify_workloads(const Dataset &dataset) {
   expect(tree->hull(false) == baseline_hull(remaining, false),
          "normal delete hull");
 
-  tree = make_tree(dataset.points);
+  tree = make_tree<HullType>(dataset.points);
   expect(tree->insert(dataset.pivot_insert), "pivot insert accepted");
   auto with_pivot_insert = dataset.points;
   with_pivot_insert.push_back(dataset.pivot_insert);
@@ -525,7 +591,7 @@ void verify_workloads(const Dataset &dataset) {
   expect(tree->hull(false) == baseline_hull(with_pivot_insert, false),
          "pivot insert hull");
 
-  tree = make_tree(dataset.points);
+  tree = make_tree<HullType>(dataset.points);
   expect(tree->erase(dataset.pivot), "pivot delete accepted");
   auto without_pivot = dataset.points;
   without_pivot.erase(
@@ -539,6 +605,11 @@ void verify_workloads(const Dataset &dataset) {
   expect(tree->valid(), "pivot delete invariants");
   expect(tree->hull(false) == baseline_hull(without_pivot, false),
          "pivot delete hull");
+}
+
+void verify_workloads(const Dataset &dataset) {
+  verify_workloads_typed<rbt::DynamicHull>(dataset, "RBT");
+  verify_workloads_typed<avl::DynamicHull>(dataset, "AVL");
 }
 
 void test_statistics() {
@@ -583,7 +654,7 @@ void test_benchmark_smoke() {
   expect(coordinates.size() == 32, "benchmark dataset uniqueness");
   verify_workloads(dataset);
   const auto reports = run_benchmarks(dataset, config);
-  expect(reports.size() == 7, "benchmark workload count");
+  expect(reports.size() == 13, "benchmark workload count");
   for (const auto &report : reports)
     expect(report.samples.size() == 2, "benchmark sample count");
 }
@@ -606,47 +677,96 @@ int main(int argc, char *argv[]) {
     test_statistics();
     test_allocation_tracking();
     test_benchmark_smoke();
-    DynamicHull tree;
-    expect(tree.insert({0, 0}), "first insert accepted");
-    expect(tree.insert({2, 0}), "second insert accepted");
-    expect(tree.insert({1, 1}), "third insert accepted");
-    expect(!tree.insert({1, 1}), "duplicate insert rejected");
-    expect(tree.size() == 3, "inserted tree size");
-    expect(tree.valid(), "inserted tree invariants");
-    const auto points = tree.ordered_points();
-    const std::vector<Point> expected{{0, 0}, {2, 0}, {1, 1}};
-    expect(points == expected, "inserted tree order");
 
-    expect(tree.erase({2, 0}), "erase accepted");
-    expect(!tree.erase({2, 0}), "missing erase rejected");
-    expect(tree.valid(), "erased tree invariants");
-    expect(tree.insert({-1, -1}), "pivot insert accepted");
-    expect(tree.valid(), "pivot insert invariants");
-    const auto size_before_pivot_erase = tree.size();
-    expect(tree.erase({-1, -1}), "pivot erase accepted");
-    expect(tree.size() == size_before_pivot_erase - 1, "pivot erase size");
-    const auto points_after_pivot_erase = tree.ordered_points();
-    expect(std::find(points_after_pivot_erase.begin(),
-                     points_after_pivot_erase.end(),
-                     Point{-1, -1}) == points_after_pivot_erase.end(),
-           "erased pivot absent");
-    expect(tree.valid(), "pivot erase invariants");
+    // RBT self-test
+    {
+      rbt::DynamicHull tree;
+      expect(tree.insert({0, 0}), "first insert accepted");
+      expect(tree.insert({2, 0}), "second insert accepted");
+      expect(tree.insert({1, 1}), "third insert accepted");
+      expect(!tree.insert({1, 1}), "duplicate insert rejected");
+      expect(tree.size() == 3, "inserted tree size");
+      expect(tree.valid(), "inserted tree invariants");
+      const auto points = tree.ordered_points();
+      const std::vector<Point> expected{{0, 0}, {2, 0}, {1, 1}};
+      expect(points == expected, "inserted tree order");
 
-    DynamicHull hull_tree;
-    const std::vector<Point> test_points{{0, 0}, {1, 0}, {2, 0},
-                                         {2, 2}, {0, 2}, {1, 1}};
-    for (const auto &p : test_points) {
-      hull_tree.insert(p);
+      expect(tree.erase({2, 0}), "erase accepted");
+      expect(!tree.erase({2, 0}), "missing erase rejected");
+      expect(tree.valid(), "erased tree invariants");
+      expect(tree.insert({-1, -1}), "pivot insert accepted");
+      expect(tree.valid(), "pivot insert invariants");
+      const auto size_before_pivot_erase = tree.size();
+      expect(tree.erase({-1, -1}), "pivot erase accepted");
+      expect(tree.size() == size_before_pivot_erase - 1, "pivot erase size");
+      const auto points_after_pivot_erase = tree.ordered_points();
+      expect(std::find(points_after_pivot_erase.begin(),
+                       points_after_pivot_erase.end(),
+                       Point{-1, -1}) == points_after_pivot_erase.end(),
+             "erased pivot absent");
+      expect(tree.valid(), "pivot erase invariants");
+
+      rbt::DynamicHull hull_tree;
+      const std::vector<Point> test_points{{0, 0}, {1, 0}, {2, 0},
+                                           {2, 2}, {0, 2}, {1, 1}};
+      for (const auto &p : test_points) {
+        hull_tree.insert(p);
+      }
+
+      const auto tree_hull_excl = hull_tree.hull(false);
+      const auto base_hull_excl = baseline_hull(test_points, false);
+      expect(tree_hull_excl == base_hull_excl, "exclusive hull");
+
+      const auto tree_hull_incl = hull_tree.hull(true);
+      const auto base_hull_incl = baseline_hull(test_points, true);
+      expect(tree_hull_incl == base_hull_incl, "inclusive hull");
     }
 
-    const auto tree_hull_excl = hull_tree.hull(false);
-    const auto base_hull_excl = baseline_hull(test_points, false);
-    expect(tree_hull_excl == base_hull_excl, "exclusive hull");
+    // AVL self-test
+    {
+      avl::DynamicHull tree;
+      expect(tree.insert({0, 0}), "first insert accepted");
+      expect(tree.insert({2, 0}), "second insert accepted");
+      expect(tree.insert({1, 1}), "third insert accepted");
+      expect(!tree.insert({1, 1}), "duplicate insert rejected");
+      expect(tree.size() == 3, "inserted tree size");
+      expect(tree.valid(), "inserted tree invariants");
+      const auto points = tree.ordered_points();
+      const std::vector<Point> expected{{0, 0}, {2, 0}, {1, 1}};
+      expect(points == expected, "inserted tree order");
 
-    const auto tree_hull_incl = hull_tree.hull(true);
-    const auto base_hull_incl = baseline_hull(test_points, true);
-    expect(tree_hull_incl == base_hull_incl, "inclusive hull");
+      expect(tree.erase({2, 0}), "erase accepted");
+      expect(!tree.erase({2, 0}), "missing erase rejected");
+      expect(tree.valid(), "erased tree invariants");
+      expect(tree.insert({-1, -1}), "pivot insert accepted");
+      expect(tree.valid(), "pivot insert invariants");
+      const auto size_before_pivot_erase = tree.size();
+      expect(tree.erase({-1, -1}), "pivot erase accepted");
+      expect(tree.size() == size_before_pivot_erase - 1, "pivot erase size");
+      const auto points_after_pivot_erase = tree.ordered_points();
+      expect(std::find(points_after_pivot_erase.begin(),
+                       points_after_pivot_erase.end(),
+                       Point{-1, -1}) == points_after_pivot_erase.end(),
+             "erased pivot absent");
+      expect(tree.valid(), "pivot erase invariants");
 
+      avl::DynamicHull hull_tree;
+      const std::vector<Point> test_points{{0, 0}, {1, 0}, {2, 0},
+                                           {2, 2}, {0, 2}, {1, 1}};
+      for (const auto &p : test_points) {
+        hull_tree.insert(p);
+      }
+
+      const auto tree_hull_excl = hull_tree.hull(false);
+      const auto base_hull_excl = baseline_hull(test_points, false);
+      expect(tree_hull_excl == base_hull_excl, "exclusive hull");
+
+      const auto tree_hull_incl = hull_tree.hull(true);
+      const auto base_hull_incl = baseline_hull(test_points, true);
+      expect(tree_hull_incl == base_hull_incl, "inclusive hull");
+    }
+
+    std::cout << "All self-tests passed successfully!\n";
   }
 
   if (run_benchmark) {
