@@ -16,8 +16,8 @@ inline int cross(Point a, Point b, Point c) {
   return (value > 0) - (value < 0);
 }
 
-inline std::vector<Point>
-scan_ordered_points(const std::vector<Point> &points, bool include_collinear) {
+inline std::vector<Point> scan_ordered_points(const std::vector<Point> &points,
+                                              bool include_collinear) {
   std::vector<Point> hull;
   for (const Point point : points) {
     while (hull.size() > 1 &&

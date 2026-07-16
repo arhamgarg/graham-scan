@@ -130,9 +130,8 @@ double nearest_rank(const std::vector<double> &sorted, double percentile) {
 
 Summary summarize(std::vector<double> samples) {
   std::sort(samples.begin(), samples.end());
-  const double mean =
-      std::accumulate(samples.begin(), samples.end(), 0.0) /
-      static_cast<double>(samples.size());
+  const double mean = std::accumulate(samples.begin(), samples.end(), 0.0) /
+                      static_cast<double>(samples.size());
   double squared_deviation = 0.0;
   for (const double sample : samples)
     squared_deviation += (sample - mean) * (sample - mean);
@@ -146,8 +145,7 @@ Summary summarize(std::vector<double> samples) {
               ? std::sqrt(squared_deviation /
                           static_cast<double>(samples.size() - 1))
               : 0.0,
-          p50,
-          nearest_rank(samples, 0.95)};
+          p50, nearest_rank(samples, 0.95)};
 }
 
 struct DurationUnit {
@@ -227,8 +225,7 @@ void print_reports(const std::vector<BenchmarkReport> &reports,
             << std::left << std::setw(24) << "benchmark" << std::right
             << std::setw(13) << "p50/op" << std::setw(13) << "p95/op"
             << std::setw(24) << "mean +- sd" << std::setw(18)
-            << "allocations/op" << std::setw(22) << "allocated bytes/op"
-            << '\n'
+            << "allocations/op" << std::setw(22) << "allocated bytes/op" << '\n'
             << std::string(114, '-') << '\n';
 
   for (const auto &report : reports) {

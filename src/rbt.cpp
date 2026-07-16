@@ -1,7 +1,7 @@
 #include "../include/rbt.hpp"
 
-#include <functional>
 #include <algorithm>
+#include <functional>
 
 namespace {
 
@@ -256,8 +256,7 @@ void DynamicHull::rebuild(std::vector<Point> points) {
 }
 
 DynamicHull::DynamicHull()
-    : root_(nullptr), nil_(new Node({0, 0}, 0, 0)), pivot_({0, 0}),
-      size_(0) {
+    : root_(nullptr), nil_(new Node({0, 0}, 0, 0)), pivot_({0, 0}), size_(0) {
   nil_->color = Color::BLACK;
   nil_->left = nil_->right = nil_->parent = nil_;
 }

@@ -11,8 +11,8 @@ bool compare_elements(const arr::Element &a, const arr::Element &b) {
   if (a_upper != b_upper)
     return a_upper > b_upper;
 
-  const __int128 cross_prod = static_cast<__int128>(a.dx) * b.dy -
-                              static_cast<__int128>(a.dy) * b.dx;
+  const __int128 cross_prod =
+      static_cast<__int128>(a.dx) * b.dy - static_cast<__int128>(a.dy) * b.dx;
   if (cross_prod != 0)
     return cross_prod > 0;
 
@@ -60,7 +60,8 @@ bool DynamicHull::insert(Point point) {
   long long dy = point.y - pivot_.y;
 
   Element new_el(point, dx, dy);
-  auto it = std::lower_bound(elements_.begin(), elements_.end(), new_el, compare_elements);
+  auto it = std::lower_bound(elements_.begin(), elements_.end(), new_el,
+                             compare_elements);
 
   if (it != elements_.end() && it->point == point) {
     return false;
@@ -106,7 +107,8 @@ bool DynamicHull::valid() const {
     __int128 expected_dist2 = static_cast<__int128>(expected_dx) * expected_dx +
                               static_cast<__int128>(expected_dy) * expected_dy;
 
-    if (el.dx != expected_dx || el.dy != expected_dy || el.distance2 != expected_dist2)
+    if (el.dx != expected_dx || el.dy != expected_dy ||
+        el.distance2 != expected_dist2)
       return false;
 
     if (i > 0) {
@@ -141,7 +143,8 @@ bool DynamicHull::erase(Point point) {
   long long dy = point.y - pivot_.y;
 
   Element target(point, dx, dy);
-  auto it = std::lower_bound(elements_.begin(), elements_.end(), target, compare_elements);
+  auto it = std::lower_bound(elements_.begin(), elements_.end(), target,
+                             compare_elements);
 
   if (it != elements_.end() && it->point == point) {
     elements_.erase(it);

@@ -21,9 +21,7 @@ bool compare_nodes(const avl::Node *a, const avl::Node *b) {
   return a->distance2 < b->distance2;
 }
 
-int height(avl::Node *n) {
-  return n ? n->height : 0;
-}
+int height(avl::Node *n) { return n ? n->height : 0; }
 
 int get_balance(avl::Node *n) {
   return n ? height(n->left) - height(n->right) : 0;
@@ -65,21 +63,17 @@ avl::Node *balance_node(avl::Node *node) {
   update_height(node);
   int balance = get_balance(node);
 
-  // Left Left Case
   if (balance > 1 && get_balance(node->left) >= 0)
     return rotate_right(node);
 
-  // Left Right Case
   if (balance > 1 && get_balance(node->left) < 0) {
     node->left = rotate_left(node->left);
     return rotate_right(node);
   }
 
-  // Right Right Case
   if (balance < -1 && get_balance(node->right) <= 0)
     return rotate_left(node);
 
-  // Right Left Case
   if (balance < -1 && get_balance(node->right) > 0) {
     node->right = rotate_right(node->right);
     return rotate_left(node);
@@ -105,7 +99,8 @@ avl::Node *insert_helper(avl::Node *node, avl::Node *new_node, bool &success) {
     node->right = insert_helper(node->right, new_node, success);
   }
 
-  if (!success) return node;
+  if (!success)
+    return node;
 
   return balance_node(node);
 }
@@ -118,7 +113,8 @@ avl::Node *find_min(avl::Node *node) {
   return curr;
 }
 
-avl::Node *erase_helper(avl::Node *node, Point point, long long dx, long long dy, __int128 distance2, bool &success) {
+avl::Node *erase_helper(avl::Node *node, Point point, long long dx,
+                        long long dy, __int128 distance2, bool &success) {
   if (!node) {
     success = false;
     return nullptr;
@@ -137,7 +133,8 @@ avl::Node *erase_helper(avl::Node *node, Point point, long long dx, long long dy
       node->dy = temp->dy;
       node->distance2 = temp->distance2;
       bool dummy_success = false;
-      node->right = erase_helper(node->right, temp->point, temp->dx, temp->dy, temp->distance2, dummy_success);
+      node->right = erase_helper(node->right, temp->point, temp->dx, temp->dy,
+                                 temp->distance2, dummy_success);
     }
   } else {
     const bool curr_upper = node->dy > 0 || (node->dy == 0 && node->dx >= 0);
@@ -159,11 +156,13 @@ avl::Node *erase_helper(avl::Node *node, Point point, long long dx, long long dy
     if (go_left) {
       node->left = erase_helper(node->left, point, dx, dy, distance2, success);
     } else {
-      node->right = erase_helper(node->right, point, dx, dy, distance2, success);
+      node->right =
+          erase_helper(node->right, point, dx, dy, distance2, success);
     }
   }
 
-  if (!node) return nullptr;
+  if (!node)
+    return nullptr;
 
   return balance_node(node);
 }
@@ -174,11 +173,15 @@ bool validate_avl(const avl::Node *node, int &computed_height) {
     return true;
   }
   int left_height = 0, right_height = 0;
-  if (!validate_avl(node->left, left_height)) return false;
-  if (!validate_avl(node->right, right_height)) return false;
+  if (!validate_avl(node->left, left_height))
+    return false;
+  if (!validate_avl(node->right, right_height))
+    return false;
 
-  if (node->height != 1 + std::max(left_height, right_height)) return false;
-  if (std::abs(left_height - right_height) > 1) return false;
+  if (node->height != 1 + std::max(left_height, right_height))
+    return false;
+  if (std::abs(left_height - right_height) > 1)
+    return false;
 
   computed_height = node->height;
   return true;
@@ -231,12 +234,9 @@ void DynamicHull::rebuild(std::vector<Point> points) {
   }
 }
 
-DynamicHull::DynamicHull()
-    : root_(nullptr), pivot_({0, 0}), size_(0) {}
+DynamicHull::DynamicHull() : root_(nullptr), pivot_({0, 0}), size_(0) {}
 
-DynamicHull::~DynamicHull() {
-  clear();
-}
+DynamicHull::~DynamicHull() { clear(); }
 
 bool DynamicHull::insert(Point point) {
   if (size_ == 0) {
