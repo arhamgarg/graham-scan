@@ -698,7 +698,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (run_benchmark) {
-    const BenchmarkConfig config{10000, 0xC0FFEE, 3, 101, 256};
+    const BenchmarkConfig config{50000, 0xC0FFEE, 3, 101, 256};
     const auto dataset = generate_dataset(config);
     verify_workloads(dataset);
     print_reports(run_benchmarks(dataset, config), config);
