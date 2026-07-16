@@ -729,6 +729,12 @@ void test_report_output() {
   expect(text.find("Mutation batch: 256 operations/sample\n") !=
              std::string::npos,
          "report mutation batch metadata");
+  expect(text.find("Compiler: ") != std::string::npos,
+         "report compiler metadata");
+  expect(text.find("Optimization: ") != std::string::npos,
+         "report optimization metadata");
+  expect(text.find("Platform: ") != std::string::npos,
+         "report platform metadata");
   expect(text.find("p50/op") != std::string::npos &&
              text.find("p95/op") != std::string::npos &&
              text.find("mean +- sd") != std::string::npos &&
