@@ -1,7 +1,5 @@
 #include "../include/rbt.hpp"
 
-#include <cassert>
-#include <cstdlib>
 #include <functional>
 #include <algorithm>
 
@@ -425,6 +423,7 @@ bool DynamicHull::erase(Point point) {
     }
   }
 
+  const Node search(point, point.x - pivot_.x, point.y - pivot_.y);
   Node *current = root_;
   Node *to_delete = nullptr;
   while (current != nil_) {
@@ -433,29 +432,7 @@ bool DynamicHull::erase(Point point) {
       break;
     }
 
-    long long dx = point.x - pivot_.x;
-    long long dy = point.y - pivot_.y;
-    __int128 distance2 =
-        static_cast<__int128>(dx) * dx + static_cast<__int128>(dy) * dy;
-
-    const bool curr_upper =
-        current->dy > 0 || (current->dy == 0 && current->dx >= 0);
-    const bool p_upper = dy > 0 || (dy == 0 && dx >= 0);
-
-    bool go_left = false;
-    if (curr_upper != p_upper) {
-      go_left = p_upper > curr_upper;
-    } else {
-      const __int128 cross_prod = static_cast<__int128>(dx) * current->dy -
-                                  static_cast<__int128>(dy) * current->dx;
-      if (cross_prod != 0) {
-        go_left = cross_prod > 0;
-      } else {
-        go_left = distance2 < current->distance2;
-      }
-    }
-
-    if (go_left) {
+    if (compare_nodes(&search, current)) {
       current = current->left;
     } else {
       current = current->right;

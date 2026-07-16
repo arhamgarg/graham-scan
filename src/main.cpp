@@ -1,6 +1,4 @@
 #include <algorithm>
-#ifdef NDEBUG
-#endif
 #include <cassert>
 #include <chrono>
 #include <cmath>
