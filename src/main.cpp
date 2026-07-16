@@ -71,7 +71,6 @@ struct Summary {
   double max;
   double p75;
   double p95;
-  double p99;
 };
 
 struct BenchmarkConfig {
@@ -156,8 +155,7 @@ Summary summarize(std::vector<double> samples) {
           median,
           samples.back(),
           nearest_rank(samples, 0.75),
-          nearest_rank(samples, 0.95),
-          nearest_rank(samples, 0.99)};
+          nearest_rank(samples, 0.95)};
 }
 
 struct DurationUnit {
@@ -182,54 +180,13 @@ std::string duration(double nanoseconds, DurationUnit unit) {
   return output.str();
 }
 
-const char *operating_system() {
-#if defined(__APPLE__)
-  return "macOS";
-#elif defined(__linux__)
-  return "Linux";
-#elif defined(_WIN32)
-  return "Windows";
-#else
-  return "unknown";
-#endif
-}
-
-const char *architecture() {
-#if defined(__aarch64__) || defined(_M_ARM64)
-  return "arm64";
-#elif defined(__x86_64__) || defined(_M_X64)
-  return "x86_64";
-#else
-  return "unknown";
-#endif
-}
-
-const char *optimization_mode() {
-#ifdef __OPTIMIZE__
-  return "enabled";
-#else
-  return "disabled";
-#endif
-}
-
-const char *compiler() {
-#if defined(__clang__)
-  return "Clang " __clang_version__;
-#elif defined(__GNUC__)
-  return "GCC " __VERSION__;
-#else
-  return "unknown";
-#endif
-}
-
 void print_reports(const std::vector<BenchmarkReport> &reports) {
   std::cout << std::left << std::setw(24) << "benchmark" << std::right
             << std::setw(7) << "runs" << std::setw(13) << "total"
             << std::setw(24) << "mean +- sd" << std::setw(13) << "min"
             << std::setw(13) << "median" << std::setw(13) << "max"
-            << std::setw(13) << "p75" << std::setw(13) << "p95" << std::setw(13)
-            << "p99" << '\n'
-            << std::string(146, '-') << '\n';
+            << std::setw(13) << "p75" << std::setw(13) << "p95" << '\n'
+            << std::string(133, '-') << '\n';
   for (const auto &report : reports) {
     const auto summary = summarize(report.samples);
     const auto unit = duration_unit(summary.mean);
@@ -242,8 +199,7 @@ void print_reports(const std::vector<BenchmarkReport> &reports) {
               << duration(summary.median, unit) << std::setw(13)
               << duration(summary.max, unit) << std::setw(13)
               << duration(summary.p75, unit) << std::setw(13)
-              << duration(summary.p95, unit) << std::setw(13)
-              << duration(summary.p99, unit) << '\n';
+              << duration(summary.p95, unit) << '\n';
   }
 
   std::cout << "\n"
@@ -253,7 +209,7 @@ void print_reports(const std::vector<BenchmarkReport> &reports) {
             << std::string(60, '-') << '\n';
   for (const auto &report : reports)
     std::cout << std::left << std::setw(24) << report.name << std::right
-              << std::fixed << std::setprecision(3) << std::setw(18)
+              << std::fixed << std::setprecision(0) << std::setw(18)
               << report.allocations_per_operation << std::setw(18)
               << report.bytes_per_operation << '\n';
 }
@@ -719,7 +675,25 @@ void test_statistics() {
   expect(summary.max == 4.0, "statistics maximum");
   expect(summary.p75 == 3.0, "statistics p75");
   expect(summary.p95 == 4.0, "statistics p95");
-  expect(summary.p99 == 4.0, "statistics p99");
+}
+
+void test_report_output() {
+  BenchmarkReport report{"test", {1.0, 2.0}};
+  report.allocations_per_operation = 1.25;
+  report.bytes_per_operation = 2.75;
+
+  std::ostringstream output;
+  auto *original = std::cout.rdbuf(output.rdbuf());
+  print_reports({report});
+  std::cout.rdbuf(original);
+
+  const auto text = output.str();
+  const auto header_end = text.find('\n');
+  expect(header_end == 133 && text.compare(header_end - 3, 3, "p95") == 0,
+         "report latency columns");
+  expect(text.find(std::string(17, ' ') + "1" + std::string(17, ' ') + "3\n") !=
+             std::string::npos,
+         "report memory metrics are whole numbers");
 }
 
 void test_allocation_tracking() {
@@ -771,6 +745,7 @@ int main(int argc, char *argv[]) {
 
   if (run_self_test) {
     test_statistics();
+    test_report_output();
     test_allocation_tracking();
     test_benchmark_smoke();
 
@@ -910,19 +885,9 @@ int main(int argc, char *argv[]) {
   }
 
   if (run_benchmark) {
-    const BenchmarkConfig config{100000, 0xC0FFEE, 3, 101, 256};
+    const BenchmarkConfig config{100000, 0xC0FFEE, 3, 101, 4096};
     const auto dataset = generate_dataset(config);
     verify_workloads(dataset);
-
-    std::cout << "Dataset size: " << config.dataset_size
-              << " unique random points\n"
-              << "Seed: " << config.seed << '\n'
-              << "Warm-ups: " << config.warmups << '\n'
-              << "Measured runs: " << config.runs << '\n'
-              << "Compiler: " << compiler() << '\n'
-              << "Optimization: " << optimization_mode() << '\n'
-              << "Platform: " << operating_system() << ' ' << architecture()
-              << "\n\n";
     print_reports(run_benchmarks(dataset, config));
   }
 
