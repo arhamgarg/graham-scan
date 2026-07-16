@@ -3,18 +3,7 @@
 #include <cstddef>
 #include <vector>
 
-// Share the same global Point struct
-#ifndef POINT_DEFINED
-#define POINT_DEFINED
-struct Point {
-  long long x, y;
-  bool operator==(const Point &other) const {
-    return x == other.x && y == other.y;
-  }
-};
-#endif
-
-int cross(Point a, Point b, Point c);
+#include "geometry.hpp"
 
 namespace avl {
 
@@ -50,7 +39,6 @@ public:
 private:
   Node *root_;
   Point pivot_;
-  bool has_pivot_;
   std::size_t size_;
 
   void clear();

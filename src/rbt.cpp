@@ -3,13 +3,6 @@
 #include <functional>
 #include <algorithm>
 
-int cross(Point a, Point b, Point c) {
-  const __int128 value =
-      (static_cast<__int128>(b.x) - a.x) * (static_cast<__int128>(c.y) - a.y) -
-      (static_cast<__int128>(b.y) - a.y) * (static_cast<__int128>(c.x) - a.x);
-  return (value > 0) - (value < 0);
-}
-
 namespace {
 
 bool compare_nodes(const rbt::Node *a, const rbt::Node *b) {
@@ -244,7 +237,6 @@ void DynamicHull::clear() {
   };
   delete_tree(root_);
   root_ = nullptr;
-  has_pivot_ = false;
   size_ = 0;
 }
 
@@ -265,7 +257,7 @@ void DynamicHull::rebuild(std::vector<Point> points) {
 
 DynamicHull::DynamicHull()
     : root_(nullptr), nil_(new Node({0, 0}, 0, 0)), pivot_({0, 0}),
-      has_pivot_(false), size_(0) {
+      size_(0) {
   nil_->color = Color::BLACK;
   nil_->left = nil_->right = nil_->parent = nil_;
 }
@@ -276,9 +268,8 @@ DynamicHull::~DynamicHull() {
 }
 
 bool DynamicHull::insert(Point point) {
-  if (!has_pivot_) {
+  if (size_ == 0) {
     pivot_ = point;
-    has_pivot_ = true;
     size_ = 1;
     return true;
   }
@@ -343,7 +334,7 @@ bool DynamicHull::insert(Point point) {
 std::vector<Point> DynamicHull::ordered_points() const {
   std::vector<Point> result;
 
-  if (has_pivot_) {
+  if (size_ != 0) {
     result.push_back(pivot_);
   }
 
@@ -360,8 +351,8 @@ std::vector<Point> DynamicHull::ordered_points() const {
 }
 
 bool DynamicHull::valid() const {
-  if (!has_pivot_)
-    return root_ == nullptr && size_ == 0;
+  if (size_ == 0)
+    return root_ == nullptr;
 
   if (root_ == nil_)
     return size_ == 1;
@@ -378,39 +369,12 @@ bool DynamicHull::valid() const {
 }
 
 std::vector<Point> DynamicHull::hull(bool include_collinear) const {
-  std::vector<Point> points = ordered_points();
-
-  if (points.empty())
-    return {};
-  if (points.size() == 1)
-    return points;
-
-  std::vector<Point> result;
-  for (const auto &p : points) {
-    while (result.size() > 1) {
-      int turn = ::cross(result[result.size() - 2], result[result.size() - 1], p);
-      if (include_collinear) {
-        if (turn < 0)
-          result.pop_back();
-        else
-          break;
-      } else {
-        if (turn <= 0)
-          result.pop_back();
-        else
-          break;
-      }
-    }
-    result.push_back(p);
-  }
-
-  return result;
+  return scan_ordered_points(ordered_points(), include_collinear);
 }
 
 bool DynamicHull::erase(Point point) {
   if (point == pivot_) {
     if (size_ == 1) {
-      has_pivot_ = false;
       size_ = 0;
       return true;
     } else if (root_ == nullptr) {

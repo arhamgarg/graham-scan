@@ -1,8 +1,6 @@
 #include "../include/arr.hpp"
 
 #include <algorithm>
-#include <cstdlib>
-#include <functional>
 
 namespace {
 
@@ -25,14 +23,9 @@ bool compare_elements(const arr::Element &a, const arr::Element &b) {
 
 namespace arr {
 
-void DynamicHull::clear() {
-  elements_.clear();
-  has_pivot_ = false;
-  size_ = 0;
-}
-
 void DynamicHull::rebuild(std::vector<Point> points) {
-  clear();
+  elements_.clear();
+  size_ = 0;
   if (points.empty())
     return;
 
@@ -46,17 +39,9 @@ void DynamicHull::rebuild(std::vector<Point> points) {
   }
 }
 
-DynamicHull::DynamicHull()
-    : pivot_({0, 0}), has_pivot_(false), size_(0) {}
-
-DynamicHull::~DynamicHull() {
-  clear();
-}
-
 bool DynamicHull::insert(Point point) {
-  if (!has_pivot_) {
+  if (size_ == 0) {
     pivot_ = point;
-    has_pivot_ = true;
     size_ = 1;
     return true;
   }
@@ -90,7 +75,7 @@ std::vector<Point> DynamicHull::ordered_points() const {
   std::vector<Point> result;
   result.reserve(size_);
 
-  if (has_pivot_) {
+  if (size_ != 0) {
     result.push_back(pivot_);
   }
 
@@ -102,8 +87,8 @@ std::vector<Point> DynamicHull::ordered_points() const {
 }
 
 bool DynamicHull::valid() const {
-  if (!has_pivot_)
-    return elements_.empty() && size_ == 0;
+  if (size_ == 0)
+    return elements_.empty();
 
   if (elements_.empty())
     return size_ == 1;
@@ -134,39 +119,12 @@ bool DynamicHull::valid() const {
 }
 
 std::vector<Point> DynamicHull::hull(bool include_collinear) const {
-  std::vector<Point> points = ordered_points();
-
-  if (points.empty())
-    return {};
-  if (points.size() == 1)
-    return points;
-
-  std::vector<Point> result;
-  for (const auto &p : points) {
-    while (result.size() > 1) {
-      int turn = ::cross(result[result.size() - 2], result[result.size() - 1], p);
-      if (include_collinear) {
-        if (turn < 0)
-          result.pop_back();
-        else
-          break;
-      } else {
-        if (turn <= 0)
-          result.pop_back();
-        else
-          break;
-      }
-    }
-    result.push_back(p);
-  }
-
-  return result;
+  return scan_ordered_points(ordered_points(), include_collinear);
 }
 
 bool DynamicHull::erase(Point point) {
   if (point == pivot_) {
     if (size_ == 1) {
-      has_pivot_ = false;
       size_ = 0;
       return true;
     } else if (elements_.empty()) {
